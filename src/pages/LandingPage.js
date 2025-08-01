@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 
@@ -22,7 +23,12 @@ function LandingPage() {
                 <li>Quality reviews</li>
                 <li>Instant payments</li>
               </ul>
-              <a href="#translation-tasks" className="mt-4 inline-block bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">View Translation Tasks</a>
+              <Link
+                to="/signup"
+                className="mt-4 inline-block bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+              >
+                View Translation Tasks
+              </Link>
             </div>
             <div className="bg-white p-6 rounded-lg shadow-md">
               <h3 className="text-2xl font-semibold mb-4">✍️ Content Writing</h3>
@@ -34,7 +40,12 @@ function LandingPage() {
                 <li>SEO optimization</li>
                 <li>Revision support</li>
               </ul>
-              <a href="#content-writing" className="mt-4 inline-block bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">View Content Writing</a>
+              <Link
+                to="/signup"
+                className="mt-4 inline-block bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+              >
+                View Content Writing
+              </Link>
             </div>
           </div>
         </section>
@@ -70,32 +81,57 @@ function LandingPage() {
               <p className="text-sm text-gray-600">Translation • Intermediate • $18 • 2 days</p>
               <p className="mt-2">Translate a 500-word marketing brochure for a tech startup from English to Spanish.</p>
               <p className="mt-2 text-sm">Languages: EN → ES</p>
-              <a href="#apply" className="mt-4 inline-block bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Apply for Task</a>
+              <Link
+                to="/signup"
+                className="mt-4 inline-block bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+              >
+                Apply for Task
+              </Link>
             </div>
             <div className="bg-white p-6 rounded-lg shadow-md">
               <h3 className="text-xl font-semibold">Blog Post: Tech Trends 2024</h3>
               <p className="text-sm text-gray-600">Content Writing • Beginner • $12 • 3 days</p>
               <p className="mt-2">Write an engaging blog post about emerging technology trends for 2024.</p>
               <p className="mt-2 text-sm">Length: 800 words</p>
-              <a href="#apply" className="mt-4 inline-block bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Apply for Task</a>
+              <Link
+                to="/signup"
+                className="mt-4 inline-block bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+              >
+                Apply for Task
+              </Link>
             </div>
             <div className="bg-white p-6 rounded-lg shadow-md">
               <h3 className="text-xl font-semibold">Legal Document Translation</h3>
               <p className="text-sm text-gray-600">Translation • Expert • $20 • 5 days</p>
               <p className="mt-2">Translate legal terms and conditions from French to English with legal accuracy.</p>
               <p className="mt-2 text-sm">Languages: FR → EN</p>
-              <a href="#apply" className="mt-4 inline-block bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Apply for Task</a>
+              <Link
+                to="/signup"
+                className="mt-4 inline-block bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+              >
+                Apply for Task
+              </Link>
             </div>
             <div className="bg-white p-6 rounded-lg shadow-md">
               <h3 className="text-xl font-semibold">Product Description Writing</h3>
               <p className="text-sm text-gray-600">Content Writing • Beginner • $10 • 1 day</p>
               <p className="mt-2">Create compelling product descriptions for an e-commerce electronics store.</p>
               <p className="mt-2 text-sm">Length: 300 words</p>
-              <a href="#apply" className="mt-4 inline-block bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Apply for Task</a>
+              <Link
+                to="/signup"
+                className="mt-4 inline-block bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+              >
+                Apply for Task
+              </Link>
             </div>
           </div>
           <div className="text-center mt-8">
-            <a href="#all-tasks" className="bg-blue-500 text-white px-6 py-3 rounded hover:bg-blue-600">View All Available Tasks</a>
+            <Link
+              to="/signup"
+              className="bg-blue-500 text-white px-6 py-3 rounded hover:bg-blue-600"
+            >
+              View All Available Tasks
+            </Link>
           </div>
         </section>
 
