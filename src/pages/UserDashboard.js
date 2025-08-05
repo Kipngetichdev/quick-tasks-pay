@@ -247,7 +247,7 @@ const UserDashboard = () => {
       setSelectedTask(null);
       toast.success('Application submitted successfully!');
     } catch (error) {
-      console.error('Error applying to task:', err);
+      console.error('Error applying to task:');
       toast.error(`Failed to apply: ${error.message}`);
     } finally {
       setIsSubmitting(false);
