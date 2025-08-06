@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../services/firebase';
 import { collection, query, where, onSnapshot, addDoc, doc, limit, startAfter, getDocs } from 'firebase/firestore';
@@ -26,7 +26,7 @@ const UserDashboard = () => {
   const [workHours, setWorkHours] = useState(0);
   const [isApplyModalOpen, setIsApplyModalOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
-  const [loadingApply, setLoadingApply] = useState(null); // Track loading state for each task
+  const [loadingApply, setLoadingApply] = useState(null);
   const [lastTaskDoc, setLastTaskDoc] = useState(null);
   const [hasMoreTasks, setHasMoreTasks] = useState(true);
 
@@ -102,6 +102,7 @@ const UserDashboard = () => {
               difficulty: data.difficulty || 'N/A',
               deadline: data.deadline || 'N/A',
               zoomLink: data.zoomLink || '',
+              assignedTo: data.assignedTo || null, // Debug field
             };
           })
           .filter((task) => task !== null)
@@ -110,10 +111,19 @@ const UserDashboard = () => {
         setLastTaskDoc(snapshot.docs[snapshot.docs.length - 1]);
         setHasMoreTasks(snapshot.docs.length === 10);
         console.log('Available Tasks:', tasks, `Count: ${tasks.length}`);
+        // Debug: Check for unexpected assignedTo or status
+        tasks.forEach((task) => {
+          if (task.assignedTo) {
+            console.warn(`Task ${task.id} has assignedTo: ${task.assignedTo}`);
+          }
+          if (task.status !== 'open') {
+            console.warn(`Task ${task.id} has unexpected status: ${task.status}`);
+          }
+        });
         setLoadingAvailable(false);
       },
       (err) => {
-        console.error('Error fetching available tasks:', err, err.code);
+        console.error('Error fetching available tasks:', err);
         setError(
           err.code === 'permission-denied'
             ? 'Permission denied when fetching tasks. Check Firestore rules.'
@@ -123,8 +133,12 @@ const UserDashboard = () => {
       }
     );
 
-    // Fetch my tasks
-    const myTasksQuery = query(collection(db, 'tasks'), where('assignedTo', '==', currentUser.uid));
+    // Fetch my tasks (admin-assigned tasks)
+    const myTasksQuery = query(
+      collection(db, 'tasks'),
+      where('assignedTo', '==', currentUser.uid),
+      where('status', 'in', ['in-progress', 'completed'])
+    );
     const unsubscribeMyTasks = onSnapshot(
       myTasksQuery,
       (snapshot) => {
@@ -172,6 +186,8 @@ const UserDashboard = () => {
           id: doc.id,
           taskId: doc.data().taskId,
           status: doc.data().status,
+          taskTitle: doc.data().taskTitle,
+          appliedAt: doc.data().appliedAt,
         }));
         setUserApplications(apps);
         console.log('User Applications:', apps, `Count: ${apps.length}`);
@@ -223,6 +239,7 @@ const UserDashboard = () => {
             difficulty: data.difficulty || 'N/A',
             deadline: data.deadline || 'N/A',
             zoomLink: data.zoomLink || '',
+            assignedTo: data.assignedTo || null, // Debug field
           };
         })
         .filter((task) => task !== null);
@@ -324,7 +341,6 @@ const UserDashboard = () => {
         return 'bg-green-500';
       case 'completed':
         return 'bg-blue-500';
-      case 'applied':
       case 'pending':
         return 'bg-yellow-500';
       case 'rejected':
@@ -335,10 +351,13 @@ const UserDashboard = () => {
   };
 
   // Check if user has applied to a task
-  const hasApplied = (taskId) =>
-    userApplications.some(
+  const hasApplied = (taskId) => {
+    const applied = userApplications.some(
       (app) => app.taskId === taskId && ['pending', 'approved'].includes(app.status)
     );
+    console.log(`Checking if applied for task ${taskId}:`, applied, userApplications);
+    return applied;
+  };
 
   return (
     <>
@@ -351,7 +370,7 @@ const UserDashboard = () => {
           )}
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-2 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <div className="bg-white border rounded-lg p-6 shadow-sm">
               <div className="flex items-center space-x-2">
                 <Trophy className="h-8 w-8 text-blue-600" />
@@ -366,7 +385,7 @@ const UserDashboard = () => {
                 <Clock className="h-8 w-8 text-blue-600" />
                 <div>
                   <p className="text-sm text-gray-500">Active Tasks</p>
-                  <p className="text-2xl font-bold">{myTasks.filter((t) => t.status === 'in-progress').length}</p>
+                  <p className="text-2xl font-bold">{myTasks.length}</p>
                 </div>
               </div>
             </div>
@@ -496,8 +515,8 @@ const UserDashboard = () => {
                       <p className="text-sm text-gray-600 mb-2 line-clamp-2">{task.description}</p>
                       <div className="flex flex-wrap gap-2 mb-4">
                         <span className="text-sm text-gray-500">Price: ${task.payRate}</span>
-                        <span className="text-sm text-gray-500">Duration: {task.duration}</span>
-                        <span className="text-sm text-gray-500">Difficulty: {task.difficulty}</span>
+                        <span className="text-sm text-gray-500">Duration: ${task.duration}</span>
+                        <span className="text-sm text-gray-500">Difficulty: ${task.difficulty}</span>
                       </div>
                       <button
                         className={`w-full rounded-md px-4 py-2 transition-colors flex items-center justify-center ${

@@ -75,15 +75,25 @@ const AdminDashboard = () => {
     const unsubscribeTasks = onSnapshot(
       tasksQuery,
       (snapshot) => {
-        const taskData = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-          title: doc.data().title || 'Untitled',
-          type: doc.data().type || 'General',
-          payRate: Number(doc.data().payRate) || 0,
-          status: doc.data().status || 'open',
-          createdAt: doc.data().createdAt || new Date().toISOString(),
-        }));
+        const taskData = snapshot.docs.map((doc) => {
+          const data = doc.data();
+          if (data.status === 'applied') {
+            console.warn(`Task ${doc.id} has unexpected status: 'applied'`);
+          }
+          if (data.assignedTo && data.status === 'open') {
+            console.warn(`Task ${doc.id} has assignedTo: ${data.assignedTo} but status is open`);
+          }
+          return {
+            id: doc.id,
+            ...data,
+            title: data.title || 'Untitled',
+            type: data.type || 'General',
+            payRate: Number(data.payRate) || 0,
+            status: data.status || 'open',
+            createdAt: data.createdAt || new Date().toISOString(),
+            assignedTo: data.assignedTo || null,
+          };
+        });
         setTasks(taskData);
         console.log('Tasks fetched:', taskData, `Count: ${taskData.length}`);
         setLoading(false);
@@ -172,7 +182,8 @@ const AdminDashboard = () => {
           .map((req) => req.trim())
           .filter((req) => req),
       };
-      await withRetry(() => addDoc(collection(db, 'tasks'), taskData));
+      const docRef = await withRetry(() => addDoc(collection(db, 'tasks'), taskData));
+      console.log('Task created with ID:', docRef.id, taskData);
       setNewTask({
         title: '',
         description: '',
@@ -187,7 +198,6 @@ const AdminDashboard = () => {
       setErrors({});
       setIsCreateTaskOpen(false);
       toast.success('Task created successfully!');
-      console.log('Task created:', taskData);
     } catch (error) {
       console.error('Error creating task:', error);
       toast.error(`Failed to create task: ${error.message}`);
@@ -200,6 +210,7 @@ const AdminDashboard = () => {
   const handleDeleteTask = async (taskId) => {
     try {
       await withRetry(() => deleteDoc(doc(db, 'tasks', taskId)));
+      console.log('Task deleted:', taskId);
       toast.success('Task deleted successfully!');
     } catch (error) {
       console.error('Error deleting task:', error);
@@ -220,6 +231,9 @@ const AdminDashboard = () => {
             assignedTo: app.userId,
           })
         );
+        console.log(`Approved application ${appId} for task ${app.taskId}, assigned to ${app.userId}`);
+      } else {
+        console.log(`Rejected application ${appId} for task ${app.taskId}`);
       }
       toast.success(`Application ${action}!`);
     } catch (error) {
@@ -231,16 +245,18 @@ const AdminDashboard = () => {
   const getStatusColor = (status) => {
     switch (status) {
       case 'open':
-      case 'approved':
         return 'bg-green-500';
-      case 'completed':
+      case 'in-progress':
+      case 'approved':
         return 'bg-blue-500';
-      case 'applied':
+      case 'completed':
+        return 'bg-blue-600';
       case 'pending':
         return 'bg-yellow-500';
       case 'rejected':
         return 'bg-red-500';
       default:
+        console.warn(`Unexpected status: ${status}`);
         return 'bg-gray-500';
     }
   };
