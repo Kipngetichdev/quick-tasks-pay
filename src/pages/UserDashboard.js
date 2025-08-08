@@ -16,6 +16,7 @@ const UserDashboard = () => {
   const [availableTasks, setAvailableTasks] = useState([]);
   const [myTasks, setMyTasks] = useState([]);
   const [userApplications, setUserApplications] = useState([]);
+  const [userTasks, setUserTasks] = useState([]); // Tasks subcollection for applied tasks
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [priceFilter, setPriceFilter] = useState('all');
   const [loadingAvailable, setLoadingAvailable] = useState(true);
@@ -29,6 +30,9 @@ const UserDashboard = () => {
   const [loadingApply, setLoadingApply] = useState(null);
   const [lastTaskDoc, setLastTaskDoc] = useState(null);
   const [hasMoreTasks, setHasMoreTasks] = useState(true);
+
+  // System user ID for global tasks
+  const SYSTEM_USER_ID = 'system-tasks';
 
   // Retry logic for Firestore operations
   const withRetry = async (fn, retries = 3, delay = 1000) => {
@@ -72,9 +76,9 @@ const UserDashboard = () => {
       }
     );
 
-    // Fetch available tasks with pagination
+    // Fetch available tasks from system-tasks with pagination
     const availableQuery = query(
-      collection(db, 'tasks'),
+      collection(db, 'users', SYSTEM_USER_ID, 'tasks'),
       where('status', '==', 'open'),
       where('visibility', '==', 'public'),
       limit(10)
@@ -102,7 +106,7 @@ const UserDashboard = () => {
               difficulty: data.difficulty || 'N/A',
               deadline: data.deadline || 'N/A',
               zoomLink: data.zoomLink || '',
-              assignedTo: data.assignedTo || null, // Debug field
+              assignedTo: data.assignedTo || null,
             };
           })
           .filter((task) => task !== null)
@@ -111,8 +115,12 @@ const UserDashboard = () => {
         setLastTaskDoc(snapshot.docs[snapshot.docs.length - 1]);
         setHasMoreTasks(snapshot.docs.length === 10);
         console.log('Available Tasks:', tasks, `Count: ${tasks.length}`);
-        // Debug: Check for unexpected assignedTo or status
         tasks.forEach((task) => {
+          console.log(`Task ${task.id} details:`, {
+            status: task.status,
+            assignedTo: task.assignedTo,
+            title: task.title,
+          });
           if (task.assignedTo) {
             console.warn(`Task ${task.id} has assignedTo: ${task.assignedTo}`);
           }
@@ -133,9 +141,9 @@ const UserDashboard = () => {
       }
     );
 
-    // Fetch my tasks (admin-assigned tasks)
+    // Fetch my tasks from system-tasks (admin-assigned tasks)
     const myTasksQuery = query(
-      collection(db, 'tasks'),
+      collection(db, 'users', SYSTEM_USER_ID, 'tasks'),
       where('assignedTo', '==', currentUser.uid),
       where('status', 'in', ['in-progress', 'completed'])
     );
@@ -198,11 +206,33 @@ const UserDashboard = () => {
       }
     );
 
+    // Fetch user's tasks subcollection
+    const userTasksQuery = query(collection(db, 'users', currentUser.uid, 'tasks'));
+    const unsubscribeUserTasks = onSnapshot(
+      userTasksQuery,
+      (snapshot) => {
+        const tasks = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          taskId: doc.data().taskId,
+          taskTitle: doc.data().taskTitle,
+          status: doc.data().status,
+          appliedAt: doc.data().appliedAt,
+        }));
+        setUserTasks(tasks);
+        console.log('User Tasks:', tasks, `Count: ${tasks.length}`);
+      },
+      (err) => {
+        console.error('Error fetching user tasks:', err);
+        setError('Failed to load user tasks. Some features may be affected.');
+      }
+    );
+
     return () => {
       unsubscribeUser();
       unsubscribeAvailable();
       unsubscribeMyTasks();
       unsubscribeApplications();
+      unsubscribeUserTasks();
     };
   }, [currentUser]);
 
@@ -212,7 +242,7 @@ const UserDashboard = () => {
     setLoadingAvailable(true);
     try {
       const nextQuery = query(
-        collection(db, 'tasks'),
+        collection(db, 'users', SYSTEM_USER_ID, 'tasks'),
         where('status', '==', 'open'),
         where('visibility', '==', 'public'),
         limit(10),
@@ -239,7 +269,7 @@ const UserDashboard = () => {
             difficulty: data.difficulty || 'N/A',
             deadline: data.deadline || 'N/A',
             zoomLink: data.zoomLink || '',
-            assignedTo: data.assignedTo || null, // Debug field
+            assignedTo: data.assignedTo || null,
           };
         })
         .filter((task) => task !== null);
@@ -255,7 +285,7 @@ const UserDashboard = () => {
     }
   };
 
-  // Handle apply button click with 3-second loader
+  // Handle apply button click
   const handleApplyClick = (task) => {
     if (!hasApplied(task.id)) {
       setLoadingApply(task.id);
@@ -263,8 +293,27 @@ const UserDashboard = () => {
         setLoadingApply(null);
         setSelectedTask(task);
         setIsApplyModalOpen(true);
-      }, 3000);
+      }, 500);
     }
+  };
+
+  // Handle application submission
+  const handleApplicationSubmit = () => {
+    // Refresh user tasks to update hasApplied status
+    const userTasksQuery = query(collection(db, 'users', currentUser.uid, 'tasks'));
+    onSnapshot(userTasksQuery, (snapshot) => {
+      const tasks = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        taskId: doc.data().taskId,
+        taskTitle: doc.data().taskTitle,
+        status: doc.data().status,
+        appliedAt: doc.data().appliedAt,
+      }));
+      setUserTasks(tasks);
+      console.log('Refreshed User Tasks:', tasks, `Count: ${tasks.length}`);
+    });
+    setIsApplyModalOpen(false);
+    toast.success('Application submitted successfully!');
   };
 
   // Time tracking
@@ -352,10 +401,10 @@ const UserDashboard = () => {
 
   // Check if user has applied to a task
   const hasApplied = (taskId) => {
-    const applied = userApplications.some(
-      (app) => app.taskId === taskId && ['pending', 'approved'].includes(app.status)
+    const applied = userTasks.some(
+      (task) => task.taskId === taskId && ['pending', 'approved'].includes(task.status)
     );
-    console.log(`Checking if applied for task ${taskId}:`, applied, userApplications);
+    console.log(`Checking if applied for task ${taskId}:`, applied, userTasks);
     return applied;
   };
 
@@ -515,8 +564,8 @@ const UserDashboard = () => {
                       <p className="text-sm text-gray-600 mb-2 line-clamp-2">{task.description}</p>
                       <div className="flex flex-wrap gap-2 mb-4">
                         <span className="text-sm text-gray-500">Price: ${task.payRate}</span>
-                        <span className="text-sm text-gray-500">Duration: ${task.duration}</span>
-                        <span className="text-sm text-gray-500">Difficulty: ${task.difficulty}</span>
+                        <span className="text-sm text-gray-500">Duration: {task.duration}</span>
+                        <span className="text-sm text-gray-500">Difficulty: {task.difficulty}</span>
                       </div>
                       <button
                         className={`w-full rounded-md px-4 py-2 transition-colors flex items-center justify-center ${
@@ -601,10 +650,7 @@ const UserDashboard = () => {
               userProfile={userProfile}
               currentUser={currentUser}
               onClose={() => setIsApplyModalOpen(false)}
-              onSubmit={() => {
-                setIsApplyModalOpen(false);
-                toast.success('Application submitted successfully!');
-              }}
+              onSubmit={handleApplicationSubmit}
             />
           )}
 

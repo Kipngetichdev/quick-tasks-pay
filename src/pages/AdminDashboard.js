@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../services/firebase';
-import { collection, query, onSnapshot, addDoc, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, onSnapshot, addDoc, deleteDoc, doc, updateDoc, getDocs, where } from 'firebase/firestore';
 import { Plus, Edit, Trash2, Users, DollarSign, FileText, TrendingUp, CheckCircle, XCircle, Clock, X } from 'lucide-react';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -34,6 +34,9 @@ const AdminDashboard = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const modalRef = useRef(null);
 
+  // System user ID for storing global tasks
+  const SYSTEM_USER_ID = 'system-tasks';
+
   // Retry logic for Firestore operations
   const withRetry = async (fn, retries = 3, delay = 1000) => {
     for (let i = 0; i < retries; i++) {
@@ -41,6 +44,7 @@ const AdminDashboard = () => {
         return await fn();
       } catch (err) {
         if (i === retries - 1) throw err;
+        console.warn(`Retry ${i + 1} failed: ${err.message}`);
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
@@ -50,6 +54,7 @@ const AdminDashboard = () => {
   useEffect(() => {
     if (!currentUser) {
       setLoading(false);
+      toast.error('Please sign in to access the dashboard.');
       return;
     }
 
@@ -61,6 +66,7 @@ const AdminDashboard = () => {
           setIsAdmin(true);
         } else {
           setIsAdmin(false);
+          toast.error('Access denied. Admins only.');
         }
         setLoading(false);
       },
@@ -71,17 +77,18 @@ const AdminDashboard = () => {
       }
     );
 
-    const tasksQuery = query(collection(db, 'tasks'));
+    // Fetch tasks from system-tasks user
+    const tasksQuery = query(collection(db, 'users', SYSTEM_USER_ID, 'tasks'));
     const unsubscribeTasks = onSnapshot(
       tasksQuery,
       (snapshot) => {
         const taskData = snapshot.docs.map((doc) => {
           const data = doc.data();
           if (data.status === 'applied') {
-            console.warn(`Task ${doc.id} has unexpected status: 'applied'`);
+            console.warn(`Task ${doc.id} has unexpected status: 'applied'`, data);
           }
           if (data.assignedTo && data.status === 'open') {
-            console.warn(`Task ${doc.id} has assignedTo: ${data.assignedTo} but status is open`);
+            console.warn(`Task ${doc.id} has assignedTo: ${data.assignedTo} but status is open`, data);
           }
           return {
             id: doc.id,
@@ -92,6 +99,7 @@ const AdminDashboard = () => {
             status: data.status || 'open',
             createdAt: data.createdAt || new Date().toISOString(),
             assignedTo: data.assignedTo || null,
+            userId: SYSTEM_USER_ID, // Track the userId for reference
           };
         });
         setTasks(taskData);
@@ -111,7 +119,7 @@ const AdminDashboard = () => {
       (snapshot) => {
         const appData = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
         setApplications(appData);
-        console.log('Applications fetched:', appData);
+        console.log('Applications fetched:', appData, `Count: ${appData.length}`);
       },
       (err) => {
         console.error('Error fetching applications:', err);
@@ -125,7 +133,7 @@ const AdminDashboard = () => {
       (snapshot) => {
         const userData = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
         setUsers(userData);
-        console.log('Users fetched:', userData);
+        console.log('Users fetched:', userData, `Count: ${userData.length}`);
       },
       (err) => {
         console.error('Error fetching users:', err);
@@ -174,15 +182,17 @@ const AdminDashboard = () => {
         ...newTask,
         payRate: Number(newTask.payRate),
         status: 'open',
-        assignedTo: null, // Explicitly null for general tasks
-        visibility: 'public', // Mark as public for all users
+        assignedTo: null,
+        visibility: 'public',
         createdAt: new Date().toISOString(),
         requirements: newTask.requirements
           .split(',')
           .map((req) => req.trim())
           .filter((req) => req),
       };
-      const docRef = await withRetry(() => addDoc(collection(db, 'tasks'), taskData));
+      const docRef = await withRetry(() =>
+        addDoc(collection(db, 'users', SYSTEM_USER_ID, 'tasks'), taskData)
+      );
       console.log('Task created with ID:', docRef.id, taskData);
       setNewTask({
         title: '',
@@ -209,12 +219,18 @@ const AdminDashboard = () => {
   // Delete task
   const handleDeleteTask = async (taskId) => {
     try {
-      await withRetry(() => deleteDoc(doc(db, 'tasks', taskId)));
+      // Check for applications
+      const relatedApps = applications.filter((app) => app.taskId === taskId);
+      if (relatedApps.length > 0) {
+        toast.error('Cannot delete task with active applications.');
+        return;
+      }
+      await withRetry(() => deleteDoc(doc(db, 'users', SYSTEM_USER_ID, 'tasks', taskId)));
       console.log('Task deleted:', taskId);
       toast.success('Task deleted successfully!');
     } catch (error) {
       console.error('Error deleting task:', error);
-      toast.error('Failed to delete task.');
+      toast.error(`Failed to delete task: ${error.message}`);
     }
   };
 
@@ -223,22 +239,65 @@ const AdminDashboard = () => {
     try {
       const appRef = doc(db, 'applications', appId);
       const app = applications.find((a) => a.id === appId);
-      await withRetry(() => updateDoc(appRef, { status: action }));
+      if (!app) {
+        throw new Error('Application not found.');
+      }
+
+      // Update application status
+      await withRetry(() =>
+        updateDoc(appRef, {
+          status: action,
+          updatedAt: new Date().toISOString(),
+        })
+      );
+
+      // Update applicant's tasks subcollection
+      const userTasksQuery = query(
+        collection(db, 'users', app.userId, 'tasks'),
+        where('taskId', '==', app.taskId)
+      );
+      const userTasksSnapshot = await getDocs(userTasksQuery);
+      if (userTasksSnapshot.empty) {
+        console.warn(`No task entry found in users/${app.userId}/tasks for taskId: ${app.taskId}`);
+      } else {
+        userTasksSnapshot.forEach(async (taskDoc) => {
+          await withRetry(() =>
+            updateDoc(doc(db, 'users', app.userId, 'tasks', taskDoc.id), {
+              status: action,
+              updatedAt: new Date().toISOString(),
+            })
+          );
+          console.log(`Updated user task ${taskDoc.id} for user ${app.userId} to status: ${action}`);
+        });
+      }
+
+      // Update task status and assignedTo if approved
       if (action === 'approved') {
+        const taskRef = doc(db, 'users', SYSTEM_USER_ID, 'tasks', app.taskId);
+        const task = tasks.find((t) => t.id === app.taskId);
+        if (!task) {
+          throw new Error('Task not found.');
+        }
+        if (task.status !== 'open') {
+          toast.error('Task is not open for assignment.');
+          return;
+        }
         await withRetry(() =>
-          updateDoc(doc(db, 'tasks', app.taskId), {
+          updateDoc(taskRef, {
             status: 'in-progress',
             assignedTo: app.userId,
+            updatedAt: new Date().toISOString(),
           })
         );
         console.log(`Approved application ${appId} for task ${app.taskId}, assigned to ${app.userId}`);
-      } else {
+      } else if (action === 'rejected') {
         console.log(`Rejected application ${appId} for task ${app.taskId}`);
       }
-      toast.success(`Application ${action}!`);
+
+      toast.success(`Application ${action} successfully!`);
     } catch (error) {
       console.error(`Error ${action} application:`, error);
-      toast.error(`Failed to ${action} application.`);
+      toast.error(`Failed to ${action} application: ${error.message}`);
     }
   };
 
@@ -255,6 +314,9 @@ const AdminDashboard = () => {
         return 'bg-yellow-500';
       case 'rejected':
         return 'bg-red-500';
+      case 'applied':
+        console.error(`Invalid task status: ${status}`);
+        return 'bg-red-600';
       default:
         console.warn(`Unexpected status: ${status}`);
         return 'bg-gray-500';
@@ -544,7 +606,7 @@ const AdminDashboard = () => {
                       required
                       aria-invalid={errors.deadline ? 'true' : 'false'}
                       aria-describedby={errors.deadline ? 'deadline-error' : undefined}
-                      min={new Date().toISOString().split('T')[0]} // Prevent past dates
+                      min={new Date().toISOString().split('T')[0]}
                     />
                     {errors.deadline && (
                       <p id="deadline-error" className="text-red-500 text-xs mt-1">{errors.deadline}</p>
@@ -817,7 +879,7 @@ const AdminDashboard = () => {
                           <td className="p-3">{user.completedTasks || 0}</td>
                           <td className="p-3">{user.successRate || '0%'}</td>
                           <td className="p-3">${user.totalEarned || 0}</td>
-                          <td className="p-3">{user.joinedAt ? user.joinedAt.split('T')[0] : 'N/A'}</td>
+                          <td className="p-3">{user.createdAt ? user.createdAt.split('T')[0] : 'N/A'}</td>
                         </tr>
                       ))}
                     </tbody>

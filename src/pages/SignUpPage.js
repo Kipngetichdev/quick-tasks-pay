@@ -28,10 +28,25 @@ function SignUpPage() {
         name,
         email,
         role,
+        appliedTasks: 0, // Track number of applied tasks
+        completedTasks: 0, // Track number of completed tasks
+        thisMonthEarned: 0, // Track earnings for the month
+        successRate: '0%', // Track success rate
+        createdAt: new Date().toISOString(),
       });
+      // Note: The tasks subcollection is created automatically when the first task is added
       navigate(role === 'admin' ? '/admindashboard' : '/dashboard');
     } catch (err) {
-      setError(err.message);
+      console.error('Sign-up error:', err);
+      setError(
+        err.code === 'auth/email-already-in-use'
+          ? 'Email is already in use.'
+          : err.code === 'auth/invalid-email'
+          ? 'Invalid email address.'
+          : err.code === 'auth/weak-password'
+          ? 'Password is too weak.'
+          : 'Failed to sign up. Please try again.'
+      );
     }
   };
 

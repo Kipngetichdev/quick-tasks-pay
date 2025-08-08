@@ -1,13 +1,40 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { db } from '../services/firebase';
-import { collection, addDoc } from 'firebase/firestore';
+import { collection, addDoc, doc, getDoc, updateDoc, increment } from 'firebase/firestore';
 import { toast } from 'react-toastify';
 
 const CompleteApplication = ({ task, userProfile, currentUser, onClose, onSubmit }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitLoader, setIsSubmitLoader] = useState(false);
   const modalRef = useRef(null);
+  const SYSTEM_USER_ID = 'system-tasks';
+
+  // Focus trapping for accessibility
+  useEffect(() => {
+    const modal = modalRef.current;
+    if (modal) {
+      modal.focus();
+      const focusableElements = modal.querySelectorAll('button, [href], input, select, textarea');
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+
+      const handleKeyDown = (e) => {
+        if (e.key === 'Tab') {
+          if (e.shiftKey && document.activeElement === firstElement) {
+            e.preventDefault();
+            lastElement.focus();
+          } else if (!e.shiftKey && document.activeElement === lastElement) {
+            e.preventDefault();
+            firstElement.focus();
+          }
+        }
+      };
+
+      modal.addEventListener('keydown', handleKeyDown);
+      return () => modal.removeEventListener('keydown', handleKeyDown);
+    }
+  }, []);
 
   // Retry logic for Firestore operations
   const withRetry = async (fn, retries = 3, delay = 1000) => {
@@ -26,11 +53,22 @@ const CompleteApplication = ({ task, userProfile, currentUser, onClose, onSubmit
     setIsSubmitLoader(true);
     setIsSubmitting(true);
 
-    // Simulate 4-second loader
-    await new Promise((resolve) => setTimeout(resolve, 4000));
-
     try {
-      // Save application to Firestore
+      // Check task status before submitting
+      const taskDoc = await getDoc(doc(db, 'users', SYSTEM_USER_ID, 'tasks', task.id));
+      console.log(`Task ${task.id} status before application: ${taskDoc.exists() ? taskDoc.data().status : 'not found'}`);
+      if (!taskDoc.exists() || taskDoc.data().status !== 'open') {
+        toast.error('This task is no longer available for applications.');
+        setIsSubmitLoader(false);
+        setIsSubmitting(false);
+        onClose();
+        return;
+      }
+
+      // Simulate 0.5-second loader
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Save application to Firestore applications collection
       await withRetry(() =>
         addDoc(collection(db, 'applications'), {
           taskId: task.id,
@@ -41,6 +79,23 @@ const CompleteApplication = ({ task, userProfile, currentUser, onClose, onSubmit
           experience: userProfile?.skills?.join(', ') || 'N/A',
           status: 'pending',
           appliedAt: new Date().toISOString(),
+        })
+      );
+
+      // Add to user's tasks subcollection
+      await withRetry(() =>
+        addDoc(collection(db, 'users', currentUser.uid, 'tasks'), {
+          taskId: task.id,
+          taskTitle: task.title,
+          status: 'pending',
+          appliedAt: new Date().toISOString(),
+        })
+      );
+
+      // Increment appliedTasks count in user document
+      await withRetry(() =>
+        updateDoc(doc(db, 'users', currentUser.uid), {
+          appliedTasks: increment(1),
         })
       );
 
@@ -80,7 +135,15 @@ ${userName}
       onSubmit();
     } catch (error) {
       console.error('Error submitting application:', error);
-      toast.error(`Failed to submit application: ${error.message}`);
+      let errorMessage = 'Failed to submit application';
+      if (error.code === 'permission-denied') {
+        errorMessage = 'You do not have permission to submit this application.';
+      } else if (error.code === 'not-found') {
+        errorMessage = 'Task not found.';
+      } else {
+        errorMessage = `Failed to submit application: ${error.message}`;
+      }
+      toast.error(errorMessage);
     } finally {
       setIsSubmitLoader(false);
       setIsSubmitting(false);
@@ -94,6 +157,7 @@ ${userName}
         className="bg-white w-full h-full p-6 overflow-y-auto"
         role="dialog"
         aria-labelledby="modal-title"
+        tabIndex={-1}
       >
         <div className="flex justify-between items-center mb-4">
           <h2 id="modal-title" className="text-xl font-bold text-gray-900">Complete Application</h2>
