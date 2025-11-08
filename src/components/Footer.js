@@ -79,7 +79,7 @@ function Footer() {
 
         {/* Bottom Bar */}
         <div className="pt-10 border-t border-white/10 flex flex-col md:flex-row justify-between items-center text-sm text-gray-400">
-          <p>&copy; 2025 Train2Earn by ComoAI Labs. All rights reserved.</p>
+          <p>&copy; @2025 Train2Earn by ComoAI Labs. All rights reserved.</p>
           <div className="flex gap-6 mt-4 md:mt-0">
             <a href="#" className="hover:text-amber-400 transition">Twitter</a>
             <a href="#" className="hover:text-amber-400 transition">LinkedIn</a>
