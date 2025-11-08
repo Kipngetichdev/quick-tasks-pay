@@ -54,14 +54,14 @@ function SignUpPage() {
       const referralCode = generateReferralCode();
 
       await setDoc(doc(db, 'users', user.uid), {
-        balance: 1000,
+        balance: 0,
         createdAt: serverTimestamp(),
         email: email,
         hasDoneFirstTask: false,
         isActive: false,
         isVIP: false,
         name: name,
-        phone: phone || '+254755444444', // Fallback if phone not provided
+        phone: phone, // Fallback if phone not provided
         referralCode: referralCode,
         userId: user.uid,
         role: role,

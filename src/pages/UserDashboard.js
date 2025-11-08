@@ -2,34 +2,29 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { db, auth } from '../services/firebase';
-import { collection, query, where, onSnapshot, doc, getDocs, updateDoc, addDoc, serverTimestamp, orderBy, limit, getDoc } from 'firebase/firestore';
-import { Trophy, Zap, Target, Crown, Clock, DollarSign, Calendar, TrendingUp, Filter, ChevronDown, LogOut } from 'lucide-react';
+import { doc, onSnapshot, updateDoc, serverTimestamp, increment } from 'firebase/firestore';
+import { Trophy, Zap, Target, Crown, Clock, DollarSign, Calendar, TrendingUp, LogOut, Star, Shield, Rocket, CheckCircle, ChevronRight } from 'lucide-react';
 import { ToastContainer, toast } from 'react-toastify';
 import Confetti from 'react-confetti';
 import 'react-toastify/dist/ReactToastify.css';
-import Skeleton from 'react-loading-skeleton';
-import 'react-loading-skeleton/dist/skeleton.css';
 
 const UserDashboard = () => {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
-  const [availableTasks, setAvailableTasks] = useState([]);
-  const [myTasks, setMyTasks] = useState([]);
-  const [categoryFilter, setCategoryFilter] = useState('all');
-  const [priceFilter, setPriceFilter] = useState('all');
-  const [loadingAvailable, setLoadingAvailable] = useState(true);
-  const [loadingMyTasks, setLoadingMyTasks] = useState(true);
   const [userProfile, setUserProfile] = useState(null);
-  const [trackingTask, setTrackingTask] = useState(null);
-  const [workHours, setWorkHours] = useState(0);
-  const [liveEarnings, setLiveEarnings] = useState(0);
-  const [streak, setStreak] = useState(0);
-  const [dailyGoal, setDailyGoal] = useState(0);
-  const [vipProgress, setVipProgress] = useState(0);
-  const [liveTaskCount, setLiveTaskCount] = useState(0);
+  const [dailyTasksRemaining, setDailyTasksRemaining] = useState(2);
+  const [myTasks, setMyTasks] = useState([]);
+  const [showVIPModal, setShowVIPModal] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
-  const [showFilters, setShowFilters] = useState(false);
-  const [dailyTasksRemaining, setDailyTasksRemaining] = useState(0);
+
+  const availableTasks = [
+    { id: 'task1', title: 'Translate English Marketing Slogans to Spanish', category: 'Translation', paymentAmount: 18, duration: '45 mins', difficulty: 'Intermediate', requirements: ['Native Spanish', 'Marketing experience'] },
+    { id: 'task2', title: 'Write Product Descriptions for Smart Home Devices', category: 'Content Writing', paymentAmount: 22, duration: '1 hour', difficulty: 'Advanced', requirements: ['SEO knowledge', 'Creative writing'] },
+    { id: 'task3', title: 'Label Safety Hazards in Urban Street Images', category: 'Data Labeling', paymentAmount: 15, duration: '30 mins', difficulty: 'Beginner', requirements: ['Attention to detail'] },
+    { id: 'task4', title: 'Classify Emotional Sentiment in Family Photos', category: 'Image Classification', paymentAmount: 20, duration: '40 mins', difficulty: 'Intermediate', requirements: ['Psychology background preferred'] },
+    { id: 'task5', title: 'Translate Swahili Proverbs to English (Cultural Nuances)', category: 'Translation', paymentAmount: 25, duration: '1 hour 15 mins', difficulty: 'Expert', requirements: ['Native Swahili + English fluency'] },
+    { id: 'task6', title: 'Write 5 Viral TikTok Scripts About AI Tools', category: 'Content Writing', paymentAmount: 30, duration: '2 hours', difficulty: 'Advanced', requirements: ['TikTok trending knowledge', 'Scriptwriting'] }
+  ];
 
   const getNextThursday = () => {
     const now = new Date();
@@ -57,780 +52,427 @@ const UserDashboard = () => {
     return `${days}d ${hours}h ${minutes}m ${seconds}s`;
   };
 
-  const checkDailyReset = async (userData) => {
-    if (!userData) return userData;
-    const today = new Date().toDateString();
-    const lastReset = userData.lastTaskResetDate?.toDate?.()?.toDateString();
-    if (lastReset !== today) {
-      const tasksAllowed = userData.isVIP ? 10 : (userData.isActive ? 5 : 0);
-      await updateDoc(doc(db, 'users', currentUser.uid), {
-        dailyTasksRemaining: tasksAllowed,
-        lastTaskResetDate: serverTimestamp()
-      });
-      const assignmentDate = new Date().toISOString().split('T')[0];
-      const assignmentQuery = query(
-        collection(db, 'dailyTaskAssignments'),
-        where('userId', '==', currentUser.uid),
-        where('date', '==', assignmentDate),
-        limit(1)
-      );
-      const assignmentDocs = await getDocs(assignmentQuery);
-      if (assignmentDocs.empty) {
-        await addDoc(collection(db, 'dailyTaskAssignments'), {
-          userId: currentUser.uid,
-          date: assignmentDate,
-          isActive: userData.isActive || false,
-          isVIP: userData.isVIP || false,
-          totalTasksAllowed: tasksAllowed,
-          tasksAssigned: 0,
-          tasksCompleted: 0,
-          tasksRemaining: tasksAllowed,
-          earnings: 0,
-          createdAt: serverTimestamp()
-        });
-      }
-      return { ...userData, dailyTasksRemaining: tasksAllowed };
-    }
-    return userData;
-  };
-
   useEffect(() => {
     if (!currentUser) return;
-    const unsubProfile = onSnapshot(doc(db, 'users', currentUser.uid), async (docSnap) => {
+
+    const unsub = onSnapshot(doc(db, 'users', currentUser.uid), (docSnap) => {
       if (docSnap.exists()) {
-        let data = docSnap.data();
-        data = await checkDailyReset(data);
+        const data = docSnap.data();
         setUserProfile(data);
-        setLiveEarnings(data.thisMonthEarned || 0);
-        setStreak(data.streak || 0);
-        setDailyGoal(data.dailyGoal || 0);
-        setVipProgress(data.vipProgress || 0);
-        setDailyTasksRemaining(data.dailyTasksRemaining || 0);
-        localStorage.setItem('user', JSON.stringify({ ...data, userId: currentUser.uid }));
-      } else {
-        toast.error('User profile not found. Please sign out and sign in again.');
-        navigate('/signin');
-      }
-    }, (error) => {
-      console.error('Error fetching user profile:', error);
-      toast.error('Failed to load profile');
-    });
-    return () => unsubProfile();
-  }, [currentUser, navigate]);
 
-  // Retry logic for Firestore operations
-  const withRetry = async (fn, retries = 3, delay = 1000) => {
-    for (let i = 0; i < retries; i++) {
-      try {
-        return await fn();
-      } catch (err) {
-        if (i === retries - 1) throw err;
-        console.warn(`Retry ${i + 1} failed: ${err.message}`);
-        await new Promise((resolve) => setTimeout(resolve, delay));
-      }
-    }
-  };
+        const today = new Date().toDateString();
+        const lastReset = data.lastTaskResetDate?.toDate?.()?.toDateString();
+        const isVIP = data.isVIP || false;
+        const maxTasks = isVIP ? 10 : 2;
 
-  useEffect(() => {
-    if (!currentUser) return;
-    const tasksQuery = query(
-      collection(db, 'tasks'),
-       where('isActive', '==', true),
-      where('deadline', '>=', new Date().toISOString().split('T')[0]), // Only fetch tasks with future or current deadlines
-      orderBy('createdAt', 'desc'),
-      limit(20)
-    );
-    const unsubAvailable = onSnapshot(tasksQuery, (snapshot) => {
-      const tasks = snapshot.docs.map(d => ({
-        id: d.id,
-        ...d.data(),
-        title: d.data().title || 'Untitled',
-        category: d.data().category || 'General',
-        paymentAmount: Number(d.data().paymentAmount) || 0,
-        duration: d.data().duration || 'N/A',
-        difficulty: d.data().difficulty || 'N/A',
-        requirements: d.data().requirements || [],
-        deadline: d.data().deadline || 'N/A',
-        zoomLink: d.data().zoomLink || '',
-        isActive: d.data().isActive !== false,
-        createdAt: d.data().createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
-      }));
-      setAvailableTasks(tasks);
-      setLiveTaskCount(snapshot.size);
-      setLoadingAvailable(false);
-      console.log('Available tasks fetched:', tasks, `Count: ${tasks.length}`);
-    }, (error) => {
-      console.error('Error fetching tasks:', error);
-      toast.error('Failed to load available tasks');
-      setLoadingAvailable(false);
-    });
-    return () => unsubAvailable();
-  }, [currentUser]);
-
-  useEffect(() => {
-    if (!currentUser) return;
-    const myTasksQuery = query(
-      collection(db, 'userTasks'),
-      where('userId', '==', currentUser.uid),
-      where('status', 'in', ['active', 'completed', 'approved', 'rejected'])
-    );
-    const unsubMyTasks = onSnapshot(myTasksQuery, async (snapshot) => {
-      const userTasksData = [];
-      for (const docSnap of snapshot.docs) {
-        const userTaskData = docSnap.data();
-        const taskDoc = await getDocs(query(
-          collection(db, 'tasks'),
-          where('__name__', '==', userTaskData.taskId),
-          limit(1)
-        ));
-        if (!taskDoc.empty) {
-          const taskDetails = taskDoc.docs[0].data();
-          userTasksData.push({
-            id: docSnap.id,
-            ...userTaskData,
-            title: taskDetails.title || 'Untitled',
-            category: taskDetails.category || 'General',
-            paymentAmount: Number(taskDetails.paymentAmount) || 0,
-            duration: taskDetails.duration || 'N/A',
-            difficulty: taskDetails.difficulty || 'N/A',
-            requirements: taskDetails.requirements || [],
-            deadline: taskDetails.deadline || 'N/A',
-            zoomLink: taskDetails.zoomLink || '',
-            status: userTaskData.status === 'active' ? 'in-progress' : userTaskData.status
+        if (lastReset !== today) {
+          updateDoc(doc(db, 'users', currentUser.uid), {
+            dailyTasksRemaining: maxTasks,
+            lastTaskResetDate: serverTimestamp()
           });
+          setDailyTasksRemaining(maxTasks);
+        } else {
+          setDailyTasksRemaining(data.dailyTasksRemaining ?? maxTasks);
         }
       }
-      setMyTasks(userTasksData);
-      setLoadingMyTasks(false);
-      console.log('My tasks fetched:', userTasksData, `Count: ${userTasksData.length}`);
-    }, (error) => {
-      console.error('Error fetching user tasks:', error);
-      toast.error('Failed to load your tasks');
-      setLoadingMyTasks(false);
     });
-    return () => unsubMyTasks();
+
+    const saved = localStorage.getItem(`myTasks_${currentUser.uid}`);
+    if (saved) {
+      const tasks = JSON.parse(saved);
+      setMyTasks(tasks);
+    }
+
+    return () => unsub();
   }, [currentUser]);
 
   useEffect(() => {
-    let timer;
-    if (trackingTask) {
-      timer = setInterval(() => setWorkHours((prev) => prev + 1), 1000);
+    if (currentUser && myTasks.length > 0) {
+      localStorage.setItem(`myTasks_${currentUser.uid}`, JSON.stringify(myTasks));
     }
-    return () => clearInterval(timer);
-  }, [trackingTask]);
+  }, [myTasks, currentUser]);
 
   useEffect(() => {
-    let saveTimer;
-    if (trackingTask && workHours > 0) {
-      saveTimer = setInterval(async () => {
-        try {
-          await withRetry(() => addDoc(collection(db, 'userTasks', trackingTask, 'workHours'), {
-            hours: workHours / 3600,
-            timestamp: serverTimestamp()
-          }));
-          toast.success('Work hours saved!');
-        } catch (error) {
-          console.error('Error saving work hours:', error);
-          toast.error('Failed to save work hours.');
-        }
-      }, 60000);
-    }
-    return () => clearInterval(saveTimer);
-  }, [trackingTask, workHours]);
-
-  useEffect(() => {
-    const checkAutoApproval = async () => {
-      const completedTasksQuery = query(
-        collection(db, 'userTasks'),
-        where('userId', '==', currentUser.uid),
-        where('status', '==', 'completed'),
-        where('autoApprovalScheduledAt', '!=', null)
-      );
-      const snapshot = await getDocs(completedTasksQuery);
-      snapshot.forEach(async (docSnap) => {
-        const taskData = docSnap.data();
-        const scheduleTime = taskData.autoApprovalScheduledAt?.toDate?.();
-        if (scheduleTime && new Date() >= scheduleTime) {
-          const userRef = doc(db, 'users', currentUser.uid);
-          const userTaskRef = doc(db, 'userTasks', docSnap.id);
-          await withRetry(() => updateDoc(userTaskRef, {
-            status: 'approved',
-            approvedAt: serverTimestamp(),
-            autoApproved: true
-          }));
-          await withRetry(() => updateDoc(userRef, {
-            balance: userProfile.balance + taskData.paymentAmount,
-            thisMonthEarned: userProfile.thisMonthEarned + taskData.paymentAmount,
-            completedTasks: userProfile.completedTasks + 1,
-            successRate: userProfile.completedTasks > 0
-              ? `${((userProfile.completedTasks + 1) / userProfile.appliedTasks * 100).toFixed(1)}%`
-              : '100%'
-          }));
-          const today = new Date().toISOString().split('T')[0];
-          const assignmentQuery = query(
-            collection(db, 'dailyTaskAssignments'),
-            where('userId', '==', currentUser.uid),
-            where('date', '==', today),
-            limit(1)
-          );
-          const assignmentDocs = await getDocs(assignmentQuery);
-          if (!assignmentDocs.empty) {
-            const assignmentDoc = assignmentDocs.docs[0];
-            const assignmentData = assignmentDoc.data();
-            await withRetry(() => updateDoc(doc(db, 'dailyTaskAssignments', assignmentDoc.id), {
-              tasksCompleted: (assignmentData.tasksCompleted || 0) + 1,
-              earnings: (assignmentData.earnings || 0) + taskData.paymentAmount
-            }));
+    const interval = setInterval(() => {
+      setMyTasks(prev => {
+        let updated = false;
+        const newTasks = prev.map(task => {
+          if (task.status === 'completed' && !task.approvalScheduled) {
+            task.approvalScheduled = Date.now() + (Math.random() * 240000 + 60000);
+            updated = true;
           }
-          toast.success(`Task "${taskData.title}" approved! +$${taskData.paymentAmount}`);
-        }
-      });
-    };
-    const interval = setInterval(checkAutoApproval, 60000);
-    return () => clearInterval(interval);
-  }, [currentUser, userProfile]);
 
-  const requestRevision = async (taskId) => {
-    try {
-      const userTaskRef = doc(db, 'userTasks', taskId);
-      const userTaskDoc = await getDoc(userTaskRef);
-      if (!userTaskDoc.exists()) return;
-      const taskData = userTaskDoc.data();
-      if (taskData.revisionCount >= taskData.maxRevisions) {
-        toast.error('Maximum revisions reached for this task.');
-        return;
-      }
-      await withRetry(() => updateDoc(userTaskRef, {
-        status: 'active',
-        revisionRequested: true,
-        revisionCount: taskData.revisionCount + 1,
-        rejectionReason: '',
-        autoApprovalScheduledAt: null
-      }));
-      toast.success('Task revision requested! You can now resubmit.');
-    } catch (error) {
-      console.error('Error requesting revision:', error);
-      toast.error('Failed to request revision.');
-    }
-  };
+          if (task.approvalScheduled && Date.now() >= task.approvalScheduled && task.status !== 'approved') {
+            task.status = 'approved';
+            task.approvedAt = new Date();
+            updated = true;
+
+            updateDoc(doc(db, 'users', currentUser.uid), {
+              balance: increment(task.paymentAmount),
+              thisMonthEarned: increment(task.paymentAmount),
+              totalEarned: increment(task.paymentAmount),
+              completedTasks: increment(1)
+            });
+
+            toast.success(`Task approved! +$${task.paymentAmount} added`, {
+              icon: <DollarSign className="w-6 h-6 text-green-400" />
+            });
+            setShowConfetti(true);
+            setTimeout(() => setShowConfetti(false), 5000);
+          }
+          return task;
+        });
+
+        if (updated) {
+          localStorage.setItem(`myTasks_${currentUser.uid}`, JSON.stringify(newTasks));
+        }
+        return newTasks;
+      });
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [currentUser]);
 
   const startTask = async (task) => {
-    try {
-      if (dailyTasksRemaining <= 0) {
-        toast.error('You have no daily tasks remaining. Upgrade to VIP or wait for reset!');
-        return;
-      }
-      const existingTaskQuery = query(
-        collection(db, 'userTasks'),
-        where('userId', '==', currentUser.uid),
-        where('taskId', '==', task.id),
-        where('status', 'in', ['active', 'completed'])
-      );
-      const existingTasks = await getDocs(existingTaskQuery);
-      if (!existingTasks.empty) {
-        toast.error('You already have this task assigned!');
-        return;
-      }
-      const userTaskData = {
-        userId: currentUser.uid,
-        taskId: task.id,
-        title: task.title,
-        status: 'active',
-        assignedAt: serverTimestamp(),
-        completedAt: null,
-        approvedAt: null,
-        submissionData: {},
-        paymentAmount: task.paymentAmount,
-        isPaid: false,
-        paidAt: null,
-        reviewerId: null,
-        reviewNotes: '',
-        rejectionReason: '',
-        revisionRequested: false,
-        revisionCount: 0,
-        maxRevisions: 2,
-        autoApprovalScheduledAt: null,
-        autoApproved: false
-      };
-      await withRetry(() => addDoc(collection(db, 'userTasks'), userTaskData));
-      await withRetry(() => updateDoc(doc(db, 'users', currentUser.uid), {
-        dailyTasksRemaining: dailyTasksRemaining - 1,
-        appliedTasks: (userProfile?.appliedTasks || 0) + 1
-      }));
-      const today = new Date().toISOString().split('T')[0];
-      const assignmentQuery = query(
-        collection(db, 'dailyTaskAssignments'),
-        where('userId', '==', currentUser.uid),
-        where('date', '==', today),
-        limit(1)
-      );
-      const assignmentDocs = await getDocs(assignmentQuery);
-      if (!assignmentDocs.empty) {
-        const assignmentDoc = assignmentDocs.docs[0];
-        const assignmentData = assignmentDoc.data();
-        await withRetry(() => updateDoc(doc(db, 'dailyTaskAssignments', assignmentDoc.id), {
-          tasksAssigned: (assignmentData.tasksAssigned || 0) + 1,
-          tasksRemaining: dailyTasksRemaining - 1
-        }));
-      }
-      navigate('/working', { state: { task: { ...task, payRate: task.paymentAmount } } });
-      setShowConfetti(true);
-      setTimeout(() => setShowConfetti(false), 3000);
-      toast.success(`Starting: ${task.title}`);
-    } catch (error) {
-      console.error('Error starting task:', error);
-      toast.error('Failed to start task. Please try again.');
+    const isVIP = userProfile?.isVIP || false;
+    const usedToday = myTasks.filter(t => 
+      new Date(t.startedAt).toDateString() === new Date().toDateString()
+    ).length;
+
+    const maxAllowed = isVIP ? 10 : 2;
+
+    if (usedToday >= maxAllowed) {
+      setShowVIPModal(true);
+      return;
     }
+
+    const newTask = {
+      id: `${task.id}_${Date.now()}`,
+      ...task,
+      status: 'in-progress',
+      startedAt: new Date(),
+      completedQuestions: 0,
+      totalQuestions: 4
+    };
+
+    setMyTasks(prev => [...prev, newTask]);
+    setDailyTasksRemaining(prev => Math.max(0, prev - 1));
+
+    toast.success(`Started: ${task.title}`);
+    navigate('/working', { state: { task } });
   };
 
-  const handleTimeTracking = async (taskId) => {
-    if (trackingTask === taskId) {
-      try {
-        await withRetry(() => addDoc(collection(db, 'userTasks', taskId, 'workHours'), {
-          hours: workHours / 3600,
-          timestamp: serverTimestamp()
-        }));
-        setTrackingTask(null);
-        setWorkHours(0);
-        toast.success('Work hours saved!');
-      } catch (error) {
-        console.error('Error saving work hours:', error);
-        toast.error('Failed to save work hours.');
-      }
-    } else {
-      setTrackingTask(taskId);
-      setWorkHours(0);
-      toast.success('Timer started');
-    }
-  };
-
-  const filteredTasks = availableTasks.filter(task => {
-    const cat = categoryFilter === 'all' || task.category === categoryFilter;
-    const price = priceFilter === 'all' ||
-      (priceFilter === 'low' && task.paymentAmount <= 12) ||
-      (priceFilter === 'medium' && task.paymentAmount > 12 && task.paymentAmount <= 16) ||
-      (priceFilter === 'high' && task.paymentAmount > 16);
-    return cat && price;
-  });
-
-  if (!currentUser) return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900 flex items-center justify-center">
-      <div className="text-center">
-        <p className="text-2xl font-semibold text-white">Authentication Required</p>
-        <p className="text-blue-200 mt-2">Please sign in to access your dashboard</p>
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900 flex items-center justify-center">
+        <p className="text-2xl text-white">Please sign in</p>
       </div>
-    </div>
+    );
+  }
+
+  const todayTasks = myTasks.filter(t => 
+    new Date(t.startedAt).toDateString() === new Date().toDateString()
   );
+
+  const activeCount = todayTasks.filter(t => t.status === 'in-progress').length;
+  const completedCount = todayTasks.filter(t => t.status === 'completed').length;
+  const approvedCount = todayTasks.filter(t => t.status === 'approved').length;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900">
-      {showConfetti && <Confetti recycle={false} numberOfPieces={150} />}
-      <header className="bg-white/10 backdrop-blur-xl border-b border-white/20 sticky top-0 z-40 shadow-lg">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex justify-between items-center">
-            <div>
-              <div className="flex items-center space-x-3 mb-1">
-                <h1 className="text-2xl font-black text-amber-400">Train2Earn</h1>
-                <span className="text-xs bg-amber-400/20 px-2 py-1 rounded-full text-amber-300">Dashboard</span>
-              </div>
-              <p className="text-sm text-blue-100">
-                Welcome back, {userProfile?.name || 'User'}
-              </p>
-            </div>
-            <button
-              onClick={() => {
-                auth.signOut().then(() => {
-                  localStorage.removeItem('user');
-                  navigate('/signin');
-                });
-              }}
-              className="inline-flex items-center px-4 py-2 rounded-xl font-medium transition-all bg-white/10 text-white hover:bg-white/20 border border-white/20"
-            >
-              <LogOut className="w-4 h-4 mr-2" />
-              Sign Out
-            </button>
+      {showConfetti && <Confetti recycle={false} numberOfPieces={300} />}
+
+      <header className="bg-white/10 backdrop-blur-xl border-b border-white/20 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+          <div>
+            <h1 className="text-2xl font-black text-amber-400">Train2Earn</h1>
+            <p className="text-sm text-blue-100">Welcome, {userProfile?.name || 'User'}</p>
           </div>
+          <button
+            onClick={() => auth.signOut().then(() => { localStorage.clear(); navigate('/signin'); })}
+            className="flex items-center gap-2 px-4 py-2 bg-white/10 rounded-xl text-white hover:bg-white/20"
+          >
+            <LogOut className="w-4 h-4" /> Sign Out
+          </button>
         </div>
       </header>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-          <div className="lg:col-span-2 bg-white/10 backdrop-blur-xl rounded-3xl shadow-2xl border border-amber-400/20 p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-blue-100 mb-1">
-                  Balance
-                </p>
-                <p className="text-5xl font-black text-amber-400">
-                  ${userProfile?.balance?.toFixed(2) || '0.00'}
-                </p>
-                <div className="flex items-center mt-3 space-x-2">
-                  <TrendingUp className="w-4 h-4 text-green-400" />
-                  <span className="text-sm text-green-300 font-medium">
-                    Ksh. {(userProfile?.balance * 129.5555).toFixed(2) || '0.00'}
+
+      <div className="max-w-7xl mx-auto px-6 py-8">
+
+        {/* Balance */}
+        <div className="grid lg:grid-cols-3 gap-6 mb-8">
+          <div className="lg:col-span-2 bg-white/10 backdrop-blur-xl rounded-3xl p-8 border border-amber-400/30">
+            <p className="text-blue-100">Balance</p>
+            <p className="text-5xl font-black text-amber-400">${(userProfile?.balance || 0).toFixed(2)}</p>
+            <button className="mt-4 bg-amber-400 text-black font-bold px-8 py-3 rounded-xl hover:scale-105 transition">
+              Withdraw
+            </button>
+          </div>
+          <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-8 border border-amber-400/30">
+            <p className="text-blue-100 flex items-center gap-2"><Calendar className="w-5 h-5" /> Next Payout</p>
+            <p className="text-3xl font-black text-white">{formatTime(timeLeft)}</p>
+            <p className="text-sm text-blue-200">Every Thursday</p>
+          </div>
+        </div>
+
+        {/* Stats */}
+        <div className="grid grid-cols-4 gap-4 mb-8">
+          <div className="bg-white/10 rounded-3xl p-6 text-center">
+            <Trophy className="w-8 h-8 text-yellow-400 mx-auto mb-2" />
+            <p className="text-2xl font-black text-white">{userProfile?.streak || 0}</p>
+            <p className="text-sm text-blue-200">Streak</p>
+          </div>
+          <div className="bg-white/10 rounded-3xl p-6 text-center">
+            <Target className="w-8 h-8 text-green-400 mx-auto mb-2" />
+            <p className="text-2xl font-black text-white">{activeCount + completedCount + approvedCount} / {userProfile?.isVIP ? 10 : 2}</p>
+            <p className="text-sm text-blue-200">Tasks Today</p>
+          </div>
+          <div className="bg-white/10 rounded-3xl p-6 text-center">
+            <Crown className="w-8 h-8 text-purple-400 mx-auto mb-2" />
+            <p className="text-2xl font-black text-white">{dailyTasksRemaining}</p>
+            <p className="text-sm text-blue-200">Tasks Left</p>
+          </div>
+          <div className="bg-white/10 rounded-3xl p-6 text-center">
+            <Zap className="w-8 h-8 text-blue-400 mx-auto mb-2" />
+            <p className="text-2xl font-black text-white">{availableTasks.length}</p>
+            <p className="text-sm text-blue-200">Available</p>
+          </div>
+        </div>
+
+        {/* Available Tasks */}
+        <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-8 mb-8">
+          <h2 className="text-2xl font-black text-white mb-6">Available Tasks</h2>
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {availableTasks.map(task => (
+              <div key={task.id} className="bg-white/5 rounded-2xl p-6 border border-white/10 hover:border-amber-400/50 transition">
+                <div className="flex justify-between mb-4">
+                  <span className="text-xs bg-blue-500/20 px-3 py-1 rounded-full text-blue-300">
+                    {task.category}
                   </span>
+                  <span className="text-2xl font-black text-amber-400">${task.paymentAmount}</span>
                 </div>
-              </div>
-              <button
-                onClick={() => toast.success('Withdrawal submitted!')}
-                className="bg-amber-400 text-blue-900 font-bold px-4 py-2 rounded-xl shadow-md hover:shadow-lg transition"
-              >
-                Withdraw
-              </button>
-            </div>
-          </div>
-          <div className="bg-white/10 backdrop-blur-xl rounded-3xl shadow-2xl border border-amber-400/20 p-6">
-            <div className="flex items-center space-x-3 mb-3">
-              <Calendar className="w-5 h-5 text-amber-400" />
-              <p className="text-sm font-medium text-blue-100">
-                Next Payout
-              </p>
-            </div>
-            <p className="text-2xl font-black text-white mb-2">
-              {formatTime(timeLeft)}
-            </p>
-            <p className="text-xs text-blue-200">
-              Every Thursday at 11:59 PM
-            </p>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          {[
-            { icon: Trophy, value: streak, label: 'Day Streak', color: 'yellow' },
-            { icon: Target, value: `${dailyGoal}%`, label: 'Daily Goal', color: 'green' },
-            { icon: Crown, value: dailyTasksRemaining, label: userProfile?.isVIP ? 'VIP Tasks Left' : 'Tasks Remaining', color: 'purple' },
-            { icon: Zap, value: liveTaskCount, label: 'Available Tasks', color: 'blue' }
-          ].map((stat, i) => (
-            <div key={i} className="bg-white/10 backdrop-blur-xl rounded-3xl shadow-xl border border-amber-400/20 p-5">
-              <div className={`inline-flex p-2 rounded-xl mb-3 ${
-                stat.color === 'yellow' ? 'bg-yellow-400/20 border border-yellow-400/30' :
-                stat.color === 'green' ? 'bg-green-400/20 border border-green-400/30' :
-                stat.color === 'purple' ? 'bg-purple-400/20 border border-purple-400/30' :
-                'bg-blue-400/20 border border-blue-400/30'
-              }`}>
-                <stat.icon className={`w-5 h-5 ${
-                  stat.color === 'yellow' ? 'text-yellow-400' :
-                  stat.color === 'green' ? 'text-green-400' :
-                  stat.color === 'purple' ? 'text-purple-400' :
-                  'text-blue-400'
-                }`} />
-              </div>
-              <p className="text-2xl font-black text-white mb-1">{stat.value}</p>
-              <p className="text-sm text-blue-100">{stat.label}</p>
-            </div>
-          ))}
-        </div>
-        <div className="bg-white/10 backdrop-blur-xl rounded-3xl shadow-2xl border border-amber-400/20 mb-8">
-          <div className="p-6 border-b border-white/10">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div>
-                <h2 className="text-2xl font-black text-white">
-                  Available Tasks
-                </h2>
-                <p className="text-sm text-blue-100 mt-1">
-                  {filteredTasks.length} tasks match your criteria
-                </p>
-              </div>
-              <button
-                onClick={() => setShowFilters(!showFilters)}
-                className="inline-flex items-center px-4 py-2 rounded-xl font-semibold transition-all bg-white/10 text-white hover:bg-white/20 border border-white/20"
-              >
-                <Filter className="w-4 h-4 mr-2" />
-                Filters
-                <ChevronDown className={`w-4 h-4 ml-2 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
-              </button>
-            </div>
-            {showFilters && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4 pt-4 border-t border-white/10">
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-blue-100">
-                    Category
-                  </label>
-                  <select
-                    value={categoryFilter}
-                    onChange={e => setCategoryFilter(e.target.value)}
-                    className="w-full px-4 py-2 rounded-xl border-2 border-blue/20 bg-blue/5 backdrop-blur-md text-blue focus:ring-2 focus:ring-amber-400 focus:border-amber-400"
-                  >
-                    <option value="all">All Categories</option>
-                    <option value="Translation">Translation</option>
-                    <option value="Content Writing">Content Writing</option>
-                    <option value="Data Labeling">Data Labeling</option>
-                    <option value="Image Classification">Image Classification</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-blue-100">
-                    Price Range
-                  </label>
-                  <select
-                    value={priceFilter}
-                    onChange={e => setPriceFilter(e.target.value)}
-                    className="w-full px-4 py-2 rounded-xl border-2 border-blue/20 bg-blue/5 backdrop-blur-md text-blue focus:ring-2 focus:ring-amber-400 focus:border-amber-400"
-                  >
-                    <option value="all">All Prices</option>
-                    <option value="low">$1 – $12</option>
-                    <option value="medium">$13 – $16</option>
-                    <option value="high">$17+</option>
-                  </select>
-                </div>
-              </div>
-            )}
-          </div>
-          <div className="p-6">
-            {loadingAvailable ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {[...Array(6)].map((_, i) => <Skeleton key={i} height={200} className="rounded-2xl" />)}
-              </div>
-            ) : filteredTasks.length === 0 ? (
-              <div className="text-center py-12">
-                <p className="text-lg text-blue-100">
-                  No tasks match your current filters
-                </p>
+                <h3 className="font-bold text-white mb-3">{task.title}</h3>
                 <button
-                  onClick={() => { setCategoryFilter('all'); setPriceFilter('all'); }}
-                  className="mt-4 text-amber-400 hover:text-amber-300 font-medium"
+                  onClick={() => startTask(task)}
+                  className={`w-full py-3 rounded-xl font-bold transition ${
+                    dailyTasksRemaining > 0
+                      ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-black hover:scale-105'
+                      : 'bg-gray-600 text-gray-300 cursor-not-allowed'
+                  }`}
+                  disabled={dailyTasksRemaining === 0}
                 >
-                  Clear filters
+                  {dailyTasksRemaining > 0 ? 'Start Task' : 'Upgrade to VIP'}
                 </button>
               </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filteredTasks.map(task => (
-                  <div
-                    key={task.id}
-                    className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-5 hover:bg-white/10 hover:border-amber-400/30 transition-all hover:shadow-xl"
-                  >
-                    <div className="flex items-start justify-between mb-3">
-                      <span className="inline-flex px-3 py-1 text-xs font-semibold rounded-full bg-blue-400/20 text-blue-300 border border-blue-400/30">
-                        {task.category}
-                      </span>
-                      <span className="text-lg font-black text-amber-400">
-                        ${task.paymentAmount}
-                      </span>
-                    </div>
-                    <h3 className="text-base font-bold mb-2 text-white">
-                      {task.title}
-                    </h3>
-                    <p className="text-sm mb-2 text-blue-100">
-                      Duration: {task.duration}
-                    </p>
-                    <p className="text-sm mb-2 text-blue-100">
-                      Difficulty: {task.difficulty}
-                    </p>
-                    <p className="text-sm mb-2 text-blue-100">
-                      Deadline: {task.deadline}
-                    </p>
-                    <p className="text-sm mb-4 line-clamp-2 text-blue-100">
-                      Requirements: {task.requirements.join(', ') || 'None'}
-                    </p>
-                    {task.zoomLink && (
-                      <p className="text-sm mb-4 text-blue-100">
-                        <a href={task.zoomLink} target="_blank" rel="noopener noreferrer" className="text-amber-400 hover:underline">
-                          Zoom Link
-                        </a>
-                      </p>
-                    )}
-                    <button
-                      onClick={() => startTask(task)}
-                      disabled={dailyTasksRemaining <= 0}
-                      className={`w-full font-bold py-2 px-4 rounded-xl transition-all ${
-                        dailyTasksRemaining > 0
-                          ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-slate-900 hover:shadow-lg transform hover:scale-[1.02]'
-                          : 'bg-gray-500 text-gray-300 cursor-not-allowed opacity-50'
-                      }`}
-                    >
-                      {dailyTasksRemaining > 0 ? 'Start Task' : 'No Tasks Left'}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
+            ))}
           </div>
         </div>
-        <div className="bg-white/10 backdrop-blur-xl rounded-3xl shadow-2xl border border-amber-400/20">
-          <div className="p-6 border-b border-white/10">
-            <h2 className="text-2xl font-black text-white">
-              My Progress
+
+        {/* TODAY'S PROGRESS – BEAUTIFUL & FIXED */}
+        <div className="bg-white/10 backdrop-blur-2xl rounded-3xl border border-white/20 shadow-2xl overflow-hidden">
+          <div className="bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-purple-600/10 border-b border-amber-400/30 px-8 py-7">
+            <h2 className="text-3xl font-black text-white flex items-center gap-3">
+              <Zap className="w-9 h-9 text-amber-400 animate-pulse" />
+              Today's Progress
             </h2>
-            <p className="text-sm text-blue-100 mt-1">
-              Track your active, completed, approved, and rejected tasks
-            </p>
+            <p className="text-blue-200 mt-1 text-sm font-medium">Real-time tracking • Auto-approval in 1–5 mins</p>
           </div>
-          <div className="p-6">
-            {loadingMyTasks ? (
-              <Skeleton count={3} height={80} className="mb-3" />
-            ) : myTasks.length === 0 ? (
-              <div className="text-center py-12">
-                <Clock className="w-12 h-12 mx-auto mb-4 text-blue-300" />
-                <p className="text-lg text-blue-100 mb-2">
-                  No tasks yet
-                </p>
-                <p className="text-sm text-blue-200">
-                  Start a task from the available tasks above
-                </p>
+
+          <div className="p-8 space-y-12">
+
+            {/* ACTIVE TASKS */}
+            <div>
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-2xl font-bold text-amber-300 flex items-center gap-3">
+                  <div className="w-4 h-4 bg-amber-400 rounded-full animate-ping"></div>
+                  <span>Active Tasks</span>
+                </h3>
+                <div className="text-4xl font-black text-white tabular-nums">{activeCount}</div>
               </div>
-            ) : (
-              <div className="space-y-6">
-                {myTasks.filter(t => t.status === 'in-progress').length > 0 && (
-                  <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <h3 className="text-lg font-bold text-amber-300 flex items-center">
-                        <Clock className="w-5 h-5 mr-2" />
-                        Active Tasks ({myTasks.filter(t => t.status === 'in-progress').length})
-                      </h3>
-                    </div>
-                    <div className="space-y-3">
-                      {myTasks.filter(t => t.status === 'in-progress').map(task => (
-                        <div
-                          key={task.id}
-                          className="bg-white/5 backdrop-blur-md border border-yellow-400/30 rounded-2xl p-4 hover:bg-white/10 transition-all"
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex-1">
-                              <h4 className="font-bold text-white mb-2">
-                                {task.title}
-                              </h4>
-                              <div className="flex items-center space-x-3">
-                                <span className="inline-flex items-center px-3 py-1 text-xs font-semibold rounded-full bg-yellow-400/20 text-yellow-300 border border-yellow-400/30">
-                                  In Progress
-                                </span>
-                                <span className="text-sm text-blue-100">
-                                  {task.category}
-                                </span>
-                                <span className="text-xs text-blue-200">
-                                  Deadline: {task.deadline}
-                                </span>
-                              </div>
-                            </div>
-                            <div className="flex items-center space-x-3">
-                              <span className="text-lg font-black text-amber-400">
-                                ${task.paymentAmount}
+
+              {activeCount === 0 ? (
+                <div className="text-center py-16 bg-white/5 rounded-3xl border-2 border-dashed border-amber-400/30">
+                  <div className="w-20 h-20 mx-auto mb-5 rounded-full bg-amber-500/10 flex items-center justify-center">
+                    <Clock className="w-12 h-12 text-amber-400" />
+                  </div>
+                  <p className="text-xl text-amber-300 font-semibold">No active tasks</p>
+                  <p className="text-blue-300 mt-2">Pick one from Available Tasks to get started!</p>
+                </div>
+              ) : (
+                <div className="space-y-5">
+                  {todayTasks
+                    .filter(t => t.status === 'in-progress')
+                    .map((task) => (
+                      <div
+                        key={task.id}
+                        className="group bg-gradient-to-br from-amber-500/10 via-yellow-500/5 to-transparent border border-amber-400/40 rounded-3xl p-6 hover:border-amber-400 hover:shadow-2xl hover:shadow-amber-400/20 transition-all duration-400"
+                      >
+                        <div className="flex items-start justify-between gap-6">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-3">
+                              <span className="px-4 py-1.5 text-xs font-bold bg-amber-400/20 text-amber-300 rounded-full border border-amber-400/50">
+                                {task.category}
                               </span>
-                              <button
-                                className={`rounded-md px-3 py-1 transition-colors ${
-                                  trackingTask === task.id
-                                    ? 'bg-red-600 text-white hover:bg-red-700'
-                                    : 'bg-blue-600 text-white hover:bg-blue-700'
-                                }`}
-                                onClick={() => handleTimeTracking(task.id)}
-                              >
-                                {trackingTask === task.id
-                                  ? `Stop (${Math.floor(workHours / 60)}m ${workHours % 60}s)`
-                                  : 'Track Time'}
-                              </button>
+                              <span className="text-3xl font-black text-amber-400">${task.paymentAmount}</span>
                             </div>
+                            <h4 className="text-xl font-bold text-white group-hover:text-amber-100 transition">
+                              {task.title}
+                            </h4>
+                            <p className="text-sm text-blue-300 mt-1">
+                              Started at {new Date(task.startedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => navigate('/working', { state: { task } })}
+                            className="px-7 py-3.5 bg-gradient-to-r from-amber-400 to-orange-500 text-black font-bold rounded-2xl hover:shadow-xl hover:scale-105 transition-all flex items-center gap-2 whitespace-nowrap"
+                          >
+                            Continue
+                            <ChevronRight className="w-5 h-5" />
+                          </button>
+                        </div>
+                        <div className="mt-5">
+                          <div className="flex justify-between text-xs text-blue-300 mb-2">
+                            <span>Question progress</span>
+                            <span className="font-bold">{task.completedQuestions || 0} / 4</span>
+                          </div>
+                          <div className="h-3 bg-white/10 rounded-full overflow-hidden border border-white/20">
+                            <div
+                              className="h-full bg-gradient-to-r from-amber-400 to-orange-500 transition-all duration-1000 ease-out"
+                              style={{ width: `${((task.completedQuestions || 0) / 4) * 100}%` }}
+                            />
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {myTasks.filter(t => t.status === 'approved').length > 0 && (
-                  <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <h3 className="text-lg font-bold text-green-300 flex items-center">
-                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        Approved ({myTasks.filter(t => t.status === 'approved').length})
-                      </h3>
-                    </div>
-                    <div className="space-y-3">
-                      {myTasks.filter(t => t.status === 'approved').map(task => (
-                        <div
-                          key={task.id}
-                          className="bg-white/5 backdrop-blur-md border border-green-400/30 rounded-2xl p-4 hover:bg-white/10 transition-all"
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex-1">
-                              <h4 className="font-bold text-white mb-2">
-                                {task.title}
-                              </h4>
-                              <div className="flex items-center space-x-3">
-                                <span className="inline-flex items-center px-3 py-1 text-xs font-semibold rounded-full bg-green-400/20 text-green-300 border border-green-400/30">
-                                  ✓ Approved
-                                </span>
-                                <span className="text-sm text-blue-100">
-                                  {task.category}
-                                </span>
-                                {task.approvedAt && (
-                                  <span className="text-xs text-blue-200">
-                                    {new Date(task.approvedAt.toDate()).toLocaleDateString()}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            <div className="flex items-center space-x-3">
-                              <div className="text-right">
-                                <span className="text-lg font-black text-green-400 block">
-                                  +${task.paymentAmount}
-                                </span>
-                                <span className="text-xs text-green-300">
-                                  Paid
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {myTasks.filter(t => t.status === 'rejected').length > 0 && (
-                  <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <h3 className="text-lg font-bold text-red-300 flex items-center">
-                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                        Rejected ({myTasks.filter(t => t.status === 'rejected').length})
-                      </h3>
-                    </div>
-                    <div className="space-y-3">
-                      {myTasks.filter(t => t.status === 'rejected').map(task => (
-                        <div
-                          key={task.id}
-                          className="bg-white/5 backdrop-blur-md border border-red-400/30 rounded-2xl p-4 hover:bg-white/10 transition-all"
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex-1">
-                              <h4 className="font-bold text-white mb-2">
-                                {task.title}
-                              </h4>
-                              <div className="flex items-center space-x-3">
-                                <span className="inline-flex items-center px-3 py-1 text-xs font-semibold rounded-full bg-red-400/20 text-red-300 border border-red-400/30">
-                                  ✗ Rejected
-                                </span>
-                                <span className="text-sm text-blue-100">
-                                  {task.category}
-                                </span>
-                                {task.rejectionReason && (
-                                  <span className="text-xs text-red-200">
-                                    Reason: {task.rejectionReason}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            <div className="flex items-center space-x-3">
-                              {task.revisionCount < task.maxRevisions && (
-                                <button
-                                  onClick={() => requestRevision(task.id)}
-                                  className="bg-amber-400 text-blue-900 font-bold px-4 py-2 rounded-xl hover:shadow-lg transition"
-                                >
-                                  Request Revision
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
+
+            {/* AWAITING APPROVAL */}
+            <div>
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-2xl font-bold text-orange-300 flex items-center gap-3">
+                  <Clock className="w-7 h-7 animate-spin-slow text-orange-400" />
+                  Awaiting Approval
+                </h3>
+                <div className="text-4xl font-black text-white tabular-nums">{completedCount}</div>
               </div>
-            )}
+
+              {completedCount === 0 ? (
+                <div className="text-center py-14 bg-white/5 rounded-3xl border-2 border-dashed border-orange-400/30">
+                  <div className="w-20 h-20 mx-auto mb-5 rounded-full bg-orange-500/10 flex items-center justify-center">
+                    <Clock className="w-12 h-12 text-orange-400" />
+                  </div>
+                  <p className="text-xl text-orange-300 font-semibold">All caught up!</p>
+                  <p className="text-blue-300 mt-2">No tasks waiting for review</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                  {todayTasks
+                    .filter(t => t.status === 'completed')
+                    .map(task => {
+                      const minutesLeft = Math.max(1, Math.ceil((task.approvalScheduled - Date.now()) / 60000));
+                      return (
+                        <div key={task.id} className="bg-gradient-to-br from-orange-500/10 to-red-600/10 border border-orange-400/50 rounded-3xl p-6 text-center hover:border-orange-400 transition">
+                          <div className="text-4xl font-black text-orange-400">${task.paymentAmount}</div>
+                          <p className="text-sm text-orange-200 mt-2 font-medium">Approval in ~{minutesLeft} min</p>
+                          <div className="mt-3 h-2 bg-white/10 rounded-full overflow-hidden">
+                            <div className="h-full bg-gradient-to-r from-orange-400 to-red-500 transition-all duration-1000" style={{ width: `${100 - (minutesLeft / 5) * 100}%` }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
+            </div>
+
+            {/* APPROVED & PAID */}
+            <div>
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-2xl font-bold text-green-300 flex items-center gap-3">
+                  <CheckCircle className="w-8 h-8 text-green-400" />
+                  Approved & Paid
+                </h3>
+                <div className="text-4xl font-black text-green-400">
+                  ${todayTasks.filter(t => t.status === 'approved').reduce((sum, t) => sum + t.paymentAmount, 0).toFixed(2)}
+                </div>
+              </div>
+
+              {approvedCount === 0 ? (
+                <div className="text-center py-14 bg-white/5 rounded-3xl border-2 border-dashed border-green-400/30">
+                  <DollarSign className="w-20 h-20 text-green-400/30 mx-auto mb-5" />
+                  <p className="text-xl text-green-300 font-semibold">No earnings yet</p>
+                  <p className="text-blue-300 mt-2">Complete tasks to see money flow in!</p>
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-4">
+                  {todayTasks
+                    .filter(t => t.status === 'approved')
+                    .map(task => (
+                      <div key={task.id} className="bg-gradient-to-br from-green-500/20 via-emerald-600/20 to-teal-600/20 border border-green-400/60 rounded-3xl px-7 py-5 flex items-center gap-5 hover:shadow-2xl hover:shadow-green-400/30 transition">
+                        <div className="w-14 h-14 bg-green-500/30 rounded-full flex items-center justify-center flex-shrink-0">
+                          <CheckCircle className="w-9 h-9 text-green-400" />
+                        </div>
+                        <div>
+                          <p className="text-2xl font-black text-white">+${task.paymentAmount}</p>
+                          <p className="text-xs text-green-200">
+                            Paid {new Date(task.approvedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Summary Footer */}
+          <div className="bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-green-500/10 border-t border-white/20 px-8 py-7">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-6 text-white">
+              <div className="flex items-center gap-5">
+                <Target className="w-10 h-10 text-amber-400" />
+                <div>
+                  <p className="text-sm text-blue-200 font-medium">Daily Limit</p>
+                  <p className="text-3xl font-black">
+                    {activeCount + completedCount + approvedCount} / {userProfile?.isVIP ? 10 : 2}
+                  </p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-sm text-blue-200 font-medium">Today's Total Earnings</p>
+                <p className="text-4xl font-black text-green-400">
+                  ${todayTasks.filter(t => t.status === 'approved').reduce((sum, t) => sum + t.paymentAmount, 0).toFixed(2)}
+                </p>
+              </div>
+            </div>
           </div>
         </div>
+
       </div>
+
+      {/* VIP Modal */}
+      {showVIPModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-gradient-to-br from-purple-900 to-indigo-900 rounded-3xl p-8 max-w-md w-full border border-purple-500">
+            <Crown className="w-16 h-16 text-purple-400 mx-auto mb-4" />
+            <h2 className="text-3xl font-black text-white text-center mb-4">Go VIP – Earn 5x Faster!</h2>
+            <div className="space-y-3 text-purple-100 mb-6">
+              <p><Star className="inline w-5 h-5 text-yellow-400" /> 10 tasks per day</p>
+              <p><Rocket className="inline w-5 h-5 text-green-400" /> Priority access</p>
+              <p><Shield className="inline w-5 h-5 text-blue-400" /> Instant withdrawals</p>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setShowVIPModal(false)} className="flex-1 py-3 bg-white/10 rounded-xl text-white">
+                Later
+              </button>
+              <button onClick={() => { toast.success('VIP coming soon!'); setShowVIPModal(false); }} className="flex-1 py-3 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl font-bold text-white">
+                Upgrade Now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <ToastContainer position="bottom-right" theme="dark" />
     </div>
   );
