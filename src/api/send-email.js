@@ -15,7 +15,6 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Gmail API setup
     const oAuth2Client = new google.auth.OAuth2(
       process.env.GMAIL_CLIENT_ID,
       process.env.GMAIL_CLIENT_SECRET,
