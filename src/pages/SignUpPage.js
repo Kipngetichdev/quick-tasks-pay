@@ -243,8 +243,13 @@ function SignUpPage() {
 
             <p className="mt-6 text-xs text-gray-500 text-center">
               By signing up, you agree to our{' '}
-              <a href="#" className="underline hover:text-amber-600">Terms</a> and{' '}
-              <a href="#" className="underline hover:text-amber-600">Privacy Policy</a>.
+              <Link to="/terms" className="underline hover:text-amber-600">
+                Terms
+              </Link>{' '}
+              and{' '}
+              <Link to="/privacy" className="underline hover:text-amber-600">
+                Privacy Policy
+              </Link>.
             </p>
           </div>
         </div>

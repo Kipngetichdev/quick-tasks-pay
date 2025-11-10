@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { db, auth } from '../services/firebase';
 import { doc, onSnapshot, updateDoc, serverTimestamp, increment } from 'firebase/firestore';
-import { Trophy, Zap, Target, Crown, Clock, DollarSign, Calendar, TrendingUp, LogOut, Star, Shield, Rocket, CheckCircle, ChevronRight } from 'lucide-react';
+import { Trophy, Zap, Target, Crown, Clock, DollarSign, Calendar, LogOut, Star, Shield, Rocket, CheckCircle, ChevronRight } from 'lucide-react';
 import { ToastContainer, toast } from 'react-toastify';
 import Confetti from 'react-confetti';
 import 'react-toastify/dist/ReactToastify.css';

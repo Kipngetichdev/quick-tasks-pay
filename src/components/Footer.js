@@ -1,3 +1,4 @@
+// src/components/Footer.js
 import React from 'react';
 import { Link } from 'react-router-dom';
 
@@ -50,7 +51,16 @@ function Footer() {
               <li><button onClick={() => scrollToSection('tasks')} className="hover:text-amber-400 transition">Available AI Jobs</button></li>
               <li><button onClick={() => scrollToSection('how-it-works')} className="hover:text-amber-400 transition">How It Works</button></li>
               <li><Link to="/success-stories" className="hover:text-amber-400 transition">Success Stories</Link></li>
-              <li><a href="https://discord.gg/Train2Earn" target="_blank" rel="noopener" className="hover:text-amber-400 transition">Join Discord</a></li>
+              <li>
+                <a 
+                  href="https://discord.gg/Train2Earn" 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="hover:text-amber-400 transition"
+                >
+                  Join Discord
+                </a>
+              </li>
             </ul>
           </div>
 
@@ -58,10 +68,10 @@ function Footer() {
           <div>
             <h4 className="text-lg font-bold mb-5 text-amber-400">Resources</h4>
             <ul className="space-y-3 text-gray-300">
-              <li><a href="/training-center" className="hover:text-amber-400 transition">Free Training Center</a></li>
-              <li><a href="/blog" className="hover:text-amber-400 transition">Blog & Updates</a></li>
-              <li><a href="/payment-proof" className="hover:text-amber-400 transition">Payment Proof</a></li>
-              <li><a href="/faq" className="hover:text-amber-400 transition">FAQ</a></li>
+              <li><Link to="/training-center" className="hover:text-amber-400 transition">Free Training Center</Link></li>
+              <li><Link to="/blog" className="hover:text-amber-400 transition">Blog & Updates</Link></li>
+              <li><Link to="/payment-proof" className="hover:text-amber-400 transition">Payment Proof</Link></li>
+              <li><Link to="/faq" className="hover:text-amber-400 transition">FAQ</Link></li>
             </ul>
           </div>
 
@@ -79,11 +89,12 @@ function Footer() {
 
         {/* Bottom Bar */}
         <div className="pt-10 border-t border-white/10 flex flex-col md:flex-row justify-between items-center text-sm text-gray-400">
-          <p>&copy; @2025 Train2Earn by ComoAI Labs. All rights reserved.</p>
+          <p>© 2025 Train2Earn by ComoAI Labs. All rights reserved.</p>
           <div className="flex gap-6 mt-4 md:mt-0">
-            <a href="#" className="hover:text-amber-400 transition">Twitter</a>
-            <a href="#" className="hover:text-amber-400 transition">LinkedIn</a>
-            <a href="#" className="hover:text-amber-400 transition">YouTube</a>
+            {/* Fixed: Use button + real links or proper href */}
+            <a href="https://twitter.com/Train2Earn" target="_blank" rel="noopener noreferrer" className="hover:text-amber-400 transition">Twitter</a>
+            <a href="https://linkedin.com/company/train2earn" target="_blank" rel="noopener noreferrer" className="hover:text-amber-400 transition">LinkedIn</a>
+            <a href="https://youtube.com/@Train2Earn" target="_blank" rel="noopener noreferrer" className="hover:text-amber-400 transition">YouTube</a>
           </div>
         </div>
       </div>
