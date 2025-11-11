@@ -5,8 +5,8 @@ import LandingPage from './pages/LandingPage';
 import SignUpPage from './pages/SignUpPage';
 import SignInPage from './pages/SignInPage';
 import UserDashboard from './pages/UserDashboard';
-import AdminDashboard from './pages/AdminDashboard';
 import Working from './pages/Working';
+import WithdrawPage from './pages/WithdrawPage';
 
 function App() {
   return (
@@ -18,8 +18,8 @@ function App() {
             <Route path="/signup" element={<SignUpPage />} />
             <Route path="/signin" element={<SignInPage />} />
             <Route path="/dashboard" element={<UserDashboard />} />
-            <Route path="/admindashboard" element={<AdminDashboard />} />
             <Route path="/working" element={<Working />} />
+            <Route path="/withdraw" element={<WithdrawPage />} />
           </Routes>
         </div>
       </Router>
