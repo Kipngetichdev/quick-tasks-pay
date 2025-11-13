@@ -1,321 +1,256 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import Footer from '../components/Footer';
+// src/pages/LandingPage.js
+import React, { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import Footer from "../components/Footer";
+import {
+  Check,
+  Clock,
+  DollarSign,
+  Users,
+  Zap,
+  ArrowRight,
+  Menu,
+  X,
+} from "lucide-react";
 
 function LandingPage() {
-  const [isScrolled, setIsScrolled] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 50);
-    };
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
+    const handleScroll = () => setScrolled(window.scrollY > 20);
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  const scrollToSection = (sectionId) => {
-    const element = document.getElementById(sectionId);
-    if (element) element.scrollIntoView({ behavior: 'smooth' });
-    setMobileMenuOpen(false);
+  const scrollTo = (id) => {
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+    setMobileOpen(false);
   };
+
+  const jobs = [
+    { title: "Online Rater", pay: "$15–$35/hr", desc: "Rate search results, chatbots, and ads" },
+    { title: "Data Collector", pay: "$18–$40/hr", desc: "Record voice, take photos, or write prompts" },
+    { title: "Data Annotator", pay: "$20–$45/hr", desc: "Label images and text with easy tools" },
+    { title: "Search Evaluator", pay: "$16–$38/hr", desc: "Improve Google and YouTube results" },
+    { title: "Ad Reviewer", pay: "$15–$30/hr", desc: "Review short ads in 2 minutes" },
+    { title: "VIP Projects", pay: "Up to $80/hr", desc: "Medical, legal, and self-driving AI" },
+  ];
+
+  const steps = [
+    { step: 1, title: "Sign Up Free", desc: "Create your account in 2 minutes" },
+    { step: 2, title: "Take Quick Quiz", desc: "Answer 5 simple questions to unlock jobs" },
+    { step: 3, title: "Start Tasks", desc: "Choose from 3,000+ available tasks" },
+    { step: 4, title: "Get Paid Weekly", desc: "Every Thursday — fast and reliable" },
+  ];
+
+
+
 
   return (
     <>
-      {/* ==================== FULL HEADER (Sticky + Hero) ==================== */}
-      <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-        isScrolled ? 'bg-slate-900/95 backdrop-blur-md shadow-2xl' : 'bg-transparent'
-      }`}>
-        {/* Trust Bar */}
-        <div className="bg-amber-400 text-slate-900 text-sm font-bold py-2 text-center">
-          <span className="hidden sm:inline">50,000+ members earned $12M+ in 2025</span>
-          <span className="sm:hidden">50K+ members • $12M+ paid</span>
-          <span className="ml-4">First $100 in 48 hours guaranteed</span>
+      {/* ===== HEADER ===== */}
+      <header
+        className={`fixed top-0 w-full z-50 transition-all duration-300 ${
+          scrolled ? "bg-white/95 backdrop-blur-sm shadow-sm" : "bg-transparent"
+        }`}
+      >
+        <div className="bg-gradient-to-r from-amber-400 to-orange-500 text-slate-900 text-xs font-semibold py-1.5 text-center">
+          50,000+ members earned $12M+ in 2025 • First $100 in 48h
         </div>
 
-        {/* Nav */}
-        <nav className="max-w-7xl mx-auto px-4 py-5 flex justify-between items-center">
-          <Link to="/" className="flex items-center space-x-3">
-            <div className="text-3xl font-black text-amber-400">Outlier AI</div>
-            <span className="hidden sm:inline text-xs bg-amber-400/20 text-amber-300 px-2 py-1 rounded">by ComoAI Labs</span>
+        <nav className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+          <Link to="/" className="text-2xl font-bold text-slate-900">
+            Outlier<span className="text-amber-500">AI</span>
+             <span className="hidden sm:inline text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded">
+              by ComoAI Labs
+            </span>
           </Link>
 
-          <div className="hidden lg:flex items-center space-x-8">
-            <button onClick={() => scrollToSection('tasks')} className="hover:text-amber-400 font-medium">AI Jobs</button>
-            <button onClick={() => scrollToSection('how-it-works')} className="hover:text-amber-400 font-medium">How It Works</button>
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-amber-400 font-bold">$15–$50/hr</span>
-              <span className="text-gray-400">• Paid Weekly</span>
-            </div>
-            <Link to="/signin" className="hover:text-amber-400">Log In</Link>
-            <Link to="/signup" className="bg-gradient-to-r from-amber-400 to-orange-500 text-slate-900 font-bold px-6 py-3 rounded-full hover:shadow-xl transform hover:scale-105 transition">
-              Join Free → Earn Today
+          {/* Desktop Nav */}
+          <div className="hidden md:flex items-center gap-6 text-sm">
+            <button onClick={() => scrollTo("jobs")} className="text-slate-700 hover:text-amber-600">
+              Jobs
+            </button>
+            <button onClick={() => scrollTo("how")} className="text-slate-700 hover:text-amber-600">
+              How It Works
+            </button>
+            <span className="text-slate-500">
+              <span className="font-bold text-amber-600">$15–$50/hr</span> • Paid Weekly
+            </span>
+            <Link to="/signin" className="text-slate-700 hover:text-amber-600">
+              Log In
+            </Link>
+            <Link
+              to="/signup"
+              className="bg-gradient-to-r from-amber-400 to-orange-500 text-slate-900 font-bold px-5 py-2 rounded-full hover:shadow transition"
+            >
+              Join Free
             </Link>
           </div>
 
-          <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="lg:hidden text-3xl">
-            {mobileMenuOpen ? '×' : '☰'}
+          {/* Mobile Toggle */}
+          <button
+            onClick={() => setMobileOpen(!mobileOpen)}
+            className="md:hidden text-xl text-slate-800"
+          >
+            {mobileOpen ? <X /> : <Menu />}
           </button>
         </nav>
 
         {/* Mobile Menu */}
-        {mobileMenuOpen && (
-          <div className="lg:hidden bg-slate-900/98 backdrop-blur-md border-t border-white/10">
-            <div className="px-6 py-8 space-y-6 text-center">
-              <button onClick={() => scrollToSection('tasks')} className="block text-xl hover:text-amber-400">AI Jobs</button>
-              <button onClick={() => scrollToSection('how-it-works')} className="block text-xl hover:text-amber-400">How It Works</button>
-              <div className="py-4">
-                <p className="text-amber-400 font-bold text-2xl">$15–$50/hour</p>
-                <p className="text-gray-400">No experience needed</p>
-              </div>
-              <Link to="/signin" className="block text-lg hover:text-amber-400">Log In</Link>
-              <Link to="/signup" onClick={() => setMobileMenuOpen(false)} className="block bg-amber-400 text-slate-900 font-bold text-xl py-4 rounded-2xl mt-6">
-                Join Free – Start Earning Now
+        {mobileOpen && (
+          <div className="md:hidden bg-white border-t border-slate-100 shadow-sm">
+            <div className="px-6 py-6 space-y-4 text-center">
+              <button onClick={() => scrollTo("jobs")} className="block text-base font-medium text-slate-700 hover:text-amber-600">
+                Jobs
+              </button>
+              <button onClick={() => scrollTo("how")} className="block text-base font-medium text-slate-700 hover:text-amber-600">
+                How It Works
+              </button>
+              <Link to="/signin" className="block text-base hover:text-amber-600">
+                Log In
               </Link>
-            </div>
-          </div>
-        )}
-
-        {/* Hero (only shows at top) */}
-        {!isScrolled && (
-          <div className="bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900 pt-32 pb-24 px-4">
-            <div className="max-w-5xl mx-auto text-center">
-              <div className="inline-flex items-center bg-amber-400/20 border border-amber-400/50 rounded-full px-6 py-2 text-sm font-bold mb-6">
-                New members earn $100 in first 48 hours
-              </div>
-              <h1 className="text-5xl md:text-7xl font-black mb-6 leading-tight">
-                Earn <span className="text-amber-400">$15–$50/hour</span><br />
-                Training AI From Home
-              </h1>
-              <p className="text-xl md:text-2xl text-blue-100 mb-10 max-w-3xl mx-auto">
-                No experience required • Work when you want • Paid weekly via , M-pesa or bank<br />
-                Join 50,000+ rating data for ChatGPT, Google & Meta
-              </p>
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Link to="/signup" className="bg-amber-400 text-slate-900 font-black text-2xl px-12 py-6 rounded-full hover:bg-amber-300 transform hover:scale-105 transition shadow-2xl">
-                  Yes! Join Outlier AI – 100% Free
-                </Link>
-                <button onClick={() => scrollToSection('tasks')} className="text-white border-2 border-white/50 px-10 py-6 rounded-full text-xl hover:bg-white/10 transition">
-                  See All Jobs →
-                </button>
-              </div>
-              <div className="mt-10 flex justify-center gap-8 text-sm opacity-80">
-                <span>3,000+ tasks daily</span>
-                <span>48-hour support</span>
-                <span>Cancel anytime</span>
-              </div>
+              <Link
+                to="/signup"
+                className="block bg-gradient-to-r from-amber-400 to-orange-500 text-slate-900 font-bold py-3 rounded-xl"
+              >
+                Join Free – Start Earning
+              </Link>
             </div>
           </div>
         )}
       </header>
 
-      {/* ==================== MAIN CONTENT (starts below header) ==================== */}
-      <main className="pt-32"> {/* This prevents overlap! */}
-
-{/* ==================== WHY CHOOSE Outlier AI – Professional SVG Icons ==================== */}
-<section className="py-24 bg-gray-50">
-  <div className="max-w-7xl mx-auto px-4">
-    <h2 className="text-4xl md:text-5xl font-black text-center mb-4 text-slate-800">
-      Why 50,000+ People Choose Outlier AI
-    </h2>
-    <p className="text-xl text-center text-gray-600 mb-16">Real jobs. Real pay. Real freedom.</p>
-
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
-      {[
-        {
-          title: "No Experience Required",
-          desc: "Students, beginners, career changers, or seasoned pros — we have tasks for every skill level.",
-          svg: (
-            <svg className="w-14 h-14 mx-auto mb-6 text-amber-500" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.576.158-1.162.307-1.755.449a49.94 49.94 0 00-2.69.72 51.04 51.04 0 00-5.908 3.505 51.04 51.04 0 00-5.908-3.505 49.94 49.94 0 00-2.69-.72z"/>
-              <path d="M12 14.5l4.5-2.25 4.5 2.25V17l-4.5 2.25L12 17l-4.5 2.25V17l4.5-2.25z"/>
-            </svg>
-          )
-        },
-        {
-          title: "100% Flexible Schedule",
-          desc: "Work 1 hour or 10. Log in anytime, from anywhere. Perfect for parents, students & digital nomads.",
-          svg: (
-            <svg className="w-14 h-14 mx-auto mb-6 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          )
-        },
-        {
-          title: "Fair & Transparent Pay",
-          desc: "$15–$50/hour based on your skills • Annual reviews • Paid weekly via PayPal, M-pesa or bank transfer.",
-          svg: (
-            <svg className="w-14 h-14 mx-auto mb-6 text-amber-500" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M4 21a1 1 0 01-1-1V8a1 1 0 011-1h3V4a1 1 0 011-1h8a1 1 0 011 1v3h3a1 1 0 011 1v12a1 1 0 01-1 1H4zm2-2h12V9h-3V6H8v3H5v10z"/>
-              <path d="M10 14h4v2h-4v-2zm0-4h4v2h-4v-2z"/>
-            </svg>
-          )
-        },
-        {
-          title: "More Training = More Money",
-          desc: "Complete free training & tests → unlock VIP projects. Many members double their rate in 90 days.",
-          svg: (
-            <svg className="w-14 h-14 mx-auto mb-6 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 012-2h2a2 2 0 012 2v6m-6 0h6m5 4H5a2 2 0 01-2-2V7a2 2 0 012-2h5l2 2h5a2 2 0 012 2v10a2 2 0 01-2 2z" />
-            </svg>
-          )
-        },
-        {
-          title: "Real Human Support",
-          desc: "Responsive team replies within 48 hours on business days. Full training & tools provided.",
-          svg: (
-            <svg className="w-14 h-14 mx-auto mb-6 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L5 20V8a2 2 0 012-2h6.586z" />
-            </svg>
-          )
-        },
-        {
-          title: "Trusted by AI Giants",
-          desc: "Work on real projects for top AI labs training ChatGPT, Gemini, self-driving cars & medical AI.",
-          svg: (
-            <svg className="w-14 h-14 mx-auto mb-6 text-amber-500" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-            </svg>
-          )
-        }
-      ].map((benefit, i) => (
-        <div
-          key={i}
-          className="group bg-white p-10 rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-300 border border-gray-100 hover:border-amber-400 text-center"
-        >
-          <div className="transform group-hover:scale-110 transition duration-300">
-            {benefit.svg}
+      {/* ===== HERO ===== */}
+      <section className="pt-28 pb-12 bg-gradient-to-br from-slate-50 to-white px-4 text-center">
+        <div className="max-w-4xl mx-auto">
+          <div className="inline-flex items-center bg-amber-100 text-amber-800 text-xs font-bold px-3 py-1.5 rounded-full mb-4">
+            <Zap className="w-3.5 h-3.5 mr-2" /> New members earn $100 in 48h
           </div>
-          <h3 className="text-2xl font-black mb-4 text-slate-800 mt-2">
-            {benefit.title}
-          </h3>
-          <p className="text-gray-600 leading-relaxed">
-            {benefit.desc}
+
+          <h1 className="text-3xl md:text-4xl font-black text-slate-900 leading-tight mb-4">
+            Earn <span className="text-amber-500">$15–$50/hr</span> Training AI From Home
+          </h1>
+
+          <p className="text-base text-slate-600 mb-8 max-w-2xl mx-auto">
+            No experience needed • Work anytime • Paid every Thursday via M-Pesa, PayPal, or bank
           </p>
-        </div>
-      ))}
-    </div>
-  </div>
-</section>
 
-        {/* AI Jobs Grid */}
-        <section id="tasks" className="py-20">
-          <div className="max-w-7xl mx-auto px-4 text-center">
-            <h2 className="text-4xl font-bold mb-6">Choose Your AI Job</h2>
-            <p className="text-xl mb-12 text-gray-600">New tasks every hour • Start in minutes</p>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {[
-                { title: "Online Rater", pay: "$15–$35/hr", desc: "Rate text/audio/video for chatbots & search" },
-                { title: "Data Collector", pay: "$18–$40/hr", desc: "Record voice, take photos, write prompts" },
-                { title: "Data Annotator", pay: "$20–$45/hr", desc: "Label objects with easy tools" },
-                { title: "Search Evaluator", pay: "$16–$38/hr", desc: "Rate Google/YouTube results" },
-                { title: "Ad Evaluator", pay: "$15–$30/hr", desc: "Review ads in 2 mins" },
-                { title: "VIP Projects", pay: "Up to $80/hr", desc: "Medical, legal, self-driving AI" }
-              ].map((job, i) => (
-                <div key={i} className="bg-white p-8 rounded-2xl shadow-xl border hover:border-amber-400 transition">
-                  <h3 className="text-2xl font-bold mb-3">{job.title}</h3>
-                  <p className="text-3xl font-bold text-amber-500 mb-4">{job.pay}</p>
-                  <p className="text-gray-600 mb-6">{job.desc}</p>
-                  <Link to="/signup" className="block bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold py-3 rounded-lg hover:from-blue-700">
-                    Start Earning →
-                  </Link>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* Earnings Proof + How It Works + Final CTA */}
-        <section className="bg-indigo-900 text-white py-16">
-          <div className="max-w-7xl mx-auto px-4 text-center">
-            <h2 className="text-4xl font-bold mb-10">Real People. Real Earnings.</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-10 mb-16">
-              <div className="bg-white/10 backdrop-blur rounded-2xl p-8"><p className="text-5xl font-bold text-amber-400">$1,800</p><p>Earned last month</p></div>
-              <div className="bg-white/10 backdrop-blur rounded-2xl p-8"><p className="text-5xl font-bold text-amber-400">$46/hr</p><p>After 60 days</p></div>
-              <div className="bg-white/10 backdrop-blur rounded-2xl p-8"><p className="text-5xl font-bold text-amber-400">4.9/5</p><p>From 12,000+ reviews</p></div>
-            </div>
-          </div>
-        </section>
-{/* ==================== HOW IT WORKS – Professional SVG Icons ==================== */}
-<section id="how-it-works" className="py-24 bg-gray-50">
-  <div className="max-w-7xl mx-auto px-4 text-center">
-    <h2 className="text-4xl md:text-5xl font-black mb-4 text-slate-800">
-      Start Earning in 10 Minutes
-    </h2>
-    <p className="text-xl text-gray-600 mb-16">No experience needed • 4 simple steps</p>
-
-    <div className="grid grid-cols-1 md:grid-cols-4 gap-10">
-      {[
-        {
-          title: "Sign Up Free",
-          desc: "Create your account in 2 minutes — no credit card required.",
-          svg: (
-            <svg className="w-16 h-16 mx-auto mb-6 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-            </svg>
-          )
-        },
-        {
-          title: "Take Quick Quiz",
-          desc: "Answer 5 simple questions to unlock your first paid tasks.",
-          svg: (
-            <svg className="w-16 h-16 mx-auto mb-6 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-          )
-        },
-        {
-          title: "Start Tasks",
-          desc: "3,000+ AI training jobs available right now — pick any.",
-          svg: (
-            <svg className="w-16 h-16 mx-auto mb-6 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-            </svg>
-          )
-        },
-        {
-          title: "Get Paid Weekly",
-          desc: "Every Thursday via PayPal, M-pesa or bank transfer — on time, every time.",
-          svg: (
-            <svg className="w-16 h-16 mx-auto mb-6 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          )
-        }
-      ].map((step, i) => (
-        <div
-          key={i}
-          className="group bg-white p-10 rounded-3xl shadow-lg hover:shadow-2xl transition-all duration-300 border border-gray-100 hover:border-amber-400"
-        >
-          <div className="transform group-hover:scale-110 transition">{step.svg}</div>
-          <h3 className="text-2xl font-bold mb-3 text-slate-800">{step.title}</h3>
-          <p className="text-gray-600 leading-relaxed">{step.desc}</p>
-          <div className="mt-6 text-5xl font-black text-amber-500/10">{i + 1}</div>
-        </div>
-      ))}
-    </div>
-
-    <div className="mt-16">
-      <Link
-        to="/signup"
-        className="inline-block bg-gradient-to-r from-amber-400 to-orange-500 text-slate-900 font-black text-xl px-12 py-6 rounded-full hover:shadow-2xl transform hover:scale-105 transition"
-      >
-        Yes! I Want to Start Earning Now
-      </Link>
-    </div>
-  </div>
-</section>
-
-        <section className="bg-gradient-to-r from-amber-400 to-orange-500 py-20">
-          <div className="max-w-4xl mx-auto text-center px-4">
-            <h2 className="text-5xl font-bold text-slate-900 mb-6">Earn $500–$2,000/month From Home</h2>
-            <Link to="/signup" className="bg-slate-900 text-white font-black text-2xl px-16 py-6 rounded-full hover:bg-slate-800 inline-block">
-              Join Outlier AI Now – Free Forever
+          <div className="flex flex-col sm:flex-row gap-3 justify-center mb-6">
+            <Link
+              to="/signup"
+              className="bg-gradient-to-r from-amber-400 to-orange-500 text-slate-900 font-bold text-base px-8 py-3 rounded-full hover:shadow-md hover:scale-[1.02] transition flex items-center justify-center"
+            >
+              Join Free <ArrowRight className="ml-2 w-4 h-4" />
             </Link>
+            <button
+              onClick={() => scrollTo("jobs")}
+              className="text-slate-700 border border-slate-300 px-7 py-3 rounded-full text-base hover:border-slate-400 transition"
+            >
+              View Jobs
+            </button>
           </div>
-        </section>
 
-      </main>
+          <div className="flex justify-center gap-6 text-xs text-slate-500 flex-wrap">
+            <span className="flex items-center"><Check className="w-3.5 h-3.5 mr-1 text-green-600" /> 3,000+ tasks</span>
+            <span className="flex items-center"><Clock className="w-3.5 h-3.5 mr-1" /> 48h support</span>
+            <span className="flex items-center"><Users className="w-3.5 h-3.5 mr-1" /> 50,000+ members</span>
+          </div>
+        </div>
+      </section>
+
+      {/* ===== JOBS ===== */}
+      <section id="jobs" className="py-12 bg-white">
+        <div className="max-w-6xl mx-auto px-4 text-center">
+          <h2 className="text-3xl font-black text-slate-900 mb-3">Choose Your AI Job</h2>
+          <p className="text-base text-slate-600 mb-8">New tasks every hour — start in minutes</p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {jobs.map((job, i) => (
+              <div
+                key={i}
+                className="bg-slate-50 p-5 rounded-xl border border-slate-200 hover:border-amber-400 hover:shadow-sm transition"
+              >
+                <h3 className="text-lg font-bold text-slate-900 mb-1">{job.title}</h3>
+                <p className="text-xl font-bold text-amber-600 mb-2">{job.pay}</p>
+                <p className="text-slate-600 mb-3 text-sm">{job.desc}</p>
+                <Link to="/signup" className="text-amber-600 font-semibold text-sm hover:underline flex items-center justify-center md:justify-start">
+                  Start <ArrowRight className="ml-1 w-3.5 h-3.5" />
+                </Link>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ===== HOW IT WORKS ===== */}
+      <section id="how" className="py-12 bg-slate-50">
+        <div className="max-w-6xl mx-auto px-4 text-center">
+          <h2 className="text-3xl font-black text-slate-900 mb-3">Start Earning in 10 Minutes</h2>
+          <p className="text-base text-slate-600 mb-8">4 simple steps — no experience required</p>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            {steps.map((s) => (
+              <div key={s.step} className="relative">
+                <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                  <div className="w-10 h-10 bg-amber-500 text-white rounded-full flex items-center justify-center text-sm font-bold mb-3 mx-auto">
+                    {s.step}
+                  </div>
+                  <h3 className="font-bold text-slate-900 mb-1 text-sm">{s.title}</h3>
+                  <p className="text-slate-600 text-xs">{s.desc}</p>
+                </div>
+                {s.step < 4 && (
+                  <div className="hidden md:block absolute top-1/2 -right-3 w-6 h-0.5 bg-slate-300 -translate-y-1/2" />
+                )}
+              </div>
+            ))}
+          </div>
+
+          <Link
+            to="/signup"
+            className="mt-8 inline-block bg-gradient-to-r from-amber-400 to-orange-500 text-slate-900 font-bold text-base px-8 py-3 rounded-full hover:shadow-md transition"
+          >
+            Join Now – Free
+          </Link>
+        </div>
+      </section>
+
+      {/* ===== STATS ===== */}
+      <section className="py-10 bg-gradient-to-r from-slate-900 to-indigo-900 text-white text-center">
+        <div className="max-w-6xl mx-auto px-4 grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div>
+            <div className="text-3xl font-black text-amber-400">$1,800</div>
+            <p className="text-slate-300 text-sm">Avg monthly earnings</p>
+          </div>
+          <div>
+            <div className="text-3xl font-black text-amber-400">$46/hr</div>
+            <p className="text-slate-300 text-sm">Top earners (60 days)</p>
+          </div>
+          <div>
+            <div className="text-3xl font-black text-amber-400">4.9/5</div>
+            <p className="text-slate-300 text-sm">From 12,000+ members</p>
+          </div>
+        </div>
+      </section>
+
+      {/* ===== FINAL CTA ===== */}
+      <section className="py-12 bg-white">
+        <div className="max-w-3xl mx-auto text-center px-4">
+          <h2 className="text-3xl font-black text-slate-900 mb-4">
+            Earn $500–$2,000/month From Home
+          </h2>
+          <p className="text-base text-slate-600 mb-6">
+            Join 50,000+ people training AI for Google, Meta & OpenAI
+          </p>
+          <Link
+            to="/signup"
+            className="inline-block bg-gradient-to-r from-amber-400 to-orange-500 text-slate-900 font-black text-lg px-10 py-4 rounded-full hover:shadow-md hover:scale-[1.03] transition"
+          >
+            Join Outlier AI – Free Forever
+          </Link>
+        </div>
+      </section>
 
       <Footer />
     </>

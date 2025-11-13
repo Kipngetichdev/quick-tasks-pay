@@ -1,82 +1,123 @@
+// src/pages/WithdrawPage.js
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { auth, db } from '../services/firebase';
-import { 
-  doc, setDoc, serverTimestamp, onSnapshot,
-  collection, query, where, orderBy, limit 
+import {
+  doc,
+  setDoc,
+  serverTimestamp,
+  onSnapshot,
+  collection,
+  query,
+  where,
+  orderBy,
+  limit,
 } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { toast, ToastContainer } from 'react-toastify';
-import { 
-  DollarSign, Smartphone, CreditCard, Building2, ArrowLeft, 
-  CheckCircle, Clock, XCircle, AlertCircle, Calendar 
+import {
+  DollarSign,
+  Smartphone,
+  CreditCard,
+  Building2,
+  ArrowLeft,
+  CheckCircle,
+  Clock,
+  XCircle,
+  AlertCircle,
+  Calendar,
+  X,
+  Check,
+  X as XIcon,
 } from 'lucide-react';
 import 'react-toastify/dist/ReactToastify.css';
 
-const EXCHANGE_RATE = 129.55; // 1 USD = 129.55 KES
+const EXCHANGE_RATE = 129.55;
+const MIN_AFTER_FEE_USD = 10.20;
+const MIN_COMPLETED_TASKS = 15;
+const FEE_PERCENTAGE = 2;
 
-function formatKES(amount) {
-  return `Ksh.${(amount).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
-}
+const formatKES = (usd) =>
+  `Ksh.${(usd * EXCHANGE_RATE).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
 
-// function formatUSD(amount) {
-//   return `($${amount.toFixed(2)} USD)`;
-// }
+const isThursday = () => new Date().getDay() === 4;
 
-function WithdrawPage() {
-  const [userData, setUserData] = useState(null);
-  const [balanceUSD, setBalanceUSD] = useState(0);
-  const [amountUSD, setAmountUSD] = useState('');
+const normalizeMpesa = (input) => {
+  if (!input) return null;
+  const cleaned = input.replace(/\D/g, '');
+  if (/^0[71]/.test(input) && cleaned.length === 10) return `+254${cleaned.slice(1)}`;
+  if (/^\+254[71]/.test(input) && cleaned.length === 12) return `+254${cleaned.slice(3)}`;
+  if (/^254[71]/.test(cleaned) && cleaned.length === 12) return `+${cleaned}`;
+  return null;
+};
+
+const WithdrawPage = () => {
+  const navigate = useNavigate();
+  const [user, setUser] = useState(null);
+  const [profile, setProfile] = useState(null);
+  const [balance, setBalance] = useState(0);
+  const [amount, setAmount] = useState('');
   const [method, setMethod] = useState('mpesa');
   const [phone, setPhone] = useState('');
   const [paypalEmail, setPaypalEmail] = useState('');
-  const [bankName, setBankName] = useState('');
-  const [accountName, setAccountName] = useState('');
-  const [accountNumber, setAccountNumber] = useState('');
-  const [swiftCode, setSwiftCode] = useState('');
+  const [bankDetails, setBankDetails] = useState({
+    bankName: '',
+    accountName: '',
+    accountNumber: '',
+    swiftCode: '',
+  });
   const [loading, setLoading] = useState(false);
-  const [recentWithdrawals, setRecentWithdrawals] = useState([]);
-  const navigate = useNavigate();
+  const [withdrawals, setWithdrawals] = useState([]);
+  const [showModal, setShowModal] = useState(false);
+  const [eligibility, setEligibility] = useState({
+    isThursday: false,
+    minAmount: false,
+    minTasks: false,
+  });
 
-  const MIN_WITHDRAWAL_USD = 10;
-  const FEE_PERCENTAGE = 2;
-
-  const balanceKES = balanceUSD * EXCHANGE_RATE;
-  const minWithdrawalKES = MIN_WITHDRAWAL_USD * EXCHANGE_RATE;
-
-  // AUTO FETCH BALANCE + USER DATA + WITHDRAWALS
+  // Auth + Data
   useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
-      if (!user) {
+    const unsubAuth = onAuthStateChanged(auth, (currentUser) => {
+      if (!currentUser) {
         navigate('/signin');
         return;
       }
+      setUser(currentUser);
 
-      const userRef = doc(db, 'users', user.uid);
-      const unsubUser = onSnapshot(userRef, (docSnap) => {
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          setUserData(data);
-          setBalanceUSD(data.balance || 0);
+      const userRef = doc(db, 'users', currentUser.uid);
+      const unsubUser = onSnapshot(userRef, (snap) => {
+        if (snap.exists()) {
+          const data = snap.data();
+          setProfile(data);
+          setBalance(data.balance || 0);
           setPhone(data.phone || '');
+
+          const tasksDone = data.completedTasks || 0;
+          const amountOk = data.balance >= MIN_AFTER_FEE_USD;
+
+          setEligibility(prev => ({
+            ...prev,
+            minAmount: amountOk,
+            minTasks: tasksDone >= MIN_COMPLETED_TASKS,
+          }));
         }
       });
 
-      const withdrawalsRef = collection(db, 'withdrawals');
       const q = query(
-        withdrawalsRef,
-        where('userId', '==', user.uid),
+        collection(db, 'withdrawals'),
+        where('userId', '==', currentUser.uid),
         orderBy('requestedAt', 'desc'),
         limit(5)
       );
 
       const unsubWithdrawals = onSnapshot(q, (snapshot) => {
-        const withdrawals = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          requestedAt: doc.data().requestedAt?.toDate()
-        }));
-        setRecentWithdrawals(withdrawals);
+        setWithdrawals(
+          snapshot.docs.map((d) => ({
+            id: d.id,
+            ...d.data(),
+            requestedAt: d.data().requestedAt?.toDate(),
+          }))
+        );
       });
 
       return () => {
@@ -85,94 +126,121 @@ function WithdrawPage() {
       };
     });
 
-    return () => unsubscribeAuth();
+    return () => unsubAuth();
   }, [navigate]);
 
-  const calculateFeeUSD = (usd) => (usd * FEE_PERCENTAGE / 100).toFixed(2);
-  const calculateTotalUSD = (usd) => (usd - usd * FEE_PERCENTAGE / 100).toFixed(2);
+  const handleSubmit = async (e) => {
+  e.preventDefault();
+  const usd = parseFloat(amount);
 
-  const handleWithdraw = async (e) => {
-    e.preventDefault();
-    const usd = parseFloat(amountUSD);
-    if (!usd || usd < MIN_WITHDRAWAL_USD) {
-      toast.error(`Minimum withdrawal is $${MIN_WITHDRAWAL_USD} (${formatKES(minWithdrawalKES)})`);
-      return;
-    }
-    if (usd > balanceUSD) {
-      toast.error('Insufficient balance');
-      return;
-    }
-    if (method === 'mpesa' && !/^\+254[17]\d{8}$/.test(phone)) {
+  // === GET LATEST VALUES (no stale state) ===
+  const isThu = isThursday();
+  const tasksDone = profile?.completedTasks || 0;
+  const amountValid = usd >= MIN_AFTER_FEE_USD && balance >= MIN_AFTER_FEE_USD;
+  const tasksValid = tasksDone >= MIN_COMPLETED_TASKS;
+
+  const checks = {
+    isThursday: isThu,
+    minAmount: amountValid,
+    minTasks: tasksValid,
+  };
+
+  // === SHOW MODAL IF ANY FAIL ===
+  if (!isThu || !amountValid || !tasksValid) {
+    setEligibility(checks);
+    setShowModal(true);
+    return;
+  }
+
+  // === PROCEED WITH WITHDRAWAL ===
+  if (usd > balance) {
+    toast.error('Insufficient balance');
+    return;
+  }
+
+  if (method === 'mpesa') {
+    const normalized = normalizeMpesa(phone);
+    if (!normalized) {
       toast.error('Invalid M-Pesa number');
       return;
     }
-    if (method === 'paypal' && !paypalEmail.includes('@')) {
-      toast.error('Invalid PayPal email');
+    setPhone(normalized);
+  }
+
+  if (method === 'paypal' && !paypalEmail.includes('@')) {
+    toast.error('Invalid PayPal email');
+    return;
+  }
+
+  if (method === 'bank') {
+    const { bankName, accountName, accountNumber } = bankDetails;
+    if (!bankName || !accountName || !accountNumber) {
+      toast.error('Complete bank details');
       return;
     }
-    if (method === 'bank' && (!bankName || !accountName || !accountNumber)) {
-      toast.error('Complete all bank details');
-      return;
-    }
+  }
 
-    setLoading(true);
-    try {
-      const withdrawalId = `${auth.currentUser.uid}_${Date.now()}`;
-      await setDoc(doc(db, 'withdrawals', withdrawalId), {
-        userId: auth.currentUser.uid,
-        name: userData.name,
-        email: userData.email,
-        amount: usd,
-        method,
-        phone: method === 'mpesa' ? phone : null,
-        paypalEmail: method === 'paypal' ? paypalEmail : null,
-        bankDetails: method === 'bank' ? { bankName, accountName, accountNumber, swiftCode } : null,
-        status: 'pending',
-        requestedAt: serverTimestamp(),
-      });
+  setLoading(true);
+  try {
+    const withdrawalId = `${user.uid}_${Date.now()}`;
+    const payload = {
+      userId: user.uid,
+      name: user.displayName || 'User',
+      email: user.email,
+      amount: usd,
+      method,
+      status: 'pending',
+      requestedAt: serverTimestamp(),
+    };
 
-      await setDoc(doc(db, 'users', auth.currentUser.uid), {
-        balance: balanceUSD - usd
-      }, { merge: true });
+    if (method === 'mpesa') payload.phone = normalizeMpesa(phone);
+    if (method === 'paypal') payload.paypalEmail = paypalEmail;
+    if (method === 'bank') payload.bankDetails = bankDetails;
 
-      toast.success('Withdrawal requested! Paid in 24hrs');
-      setAmountUSD('');
-      setPaypalEmail('');
-      setBankName(''); setAccountName(''); setAccountNumber(''); setSwiftCode('');
-    } catch (err) {
-      console.error(err);
-      toast.error('Request failed. Try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
+    await setDoc(doc(db, 'withdrawals', withdrawalId), payload);
+    await setDoc(doc(db, 'users', user.uid), { balance: balance - usd }, { merge: true });
 
-  const getStatusBadge = (status) => {
-  const defaultConfig = { bg: 'bg-yellow-100', text: 'text-yellow-700', icon: Clock, label: 'Pending' };
-
-  const configs = {
-    pending: defaultConfig,
-    completed: { bg: 'bg-green-100', text: 'text-green-700', icon: CheckCircle, label: 'Completed' },
-    failed: { bg: 'bg-red-100', text: 'text-red-700', icon: XCircle, label: 'Failed' }
-  };
-
-  const config = configs[status] || defaultConfig;
-  const Icon = config.icon;
-
-  return (
-    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${config.bg} ${config.text}`}>
-      <Icon className="w-3.5 h-3.5" />
-      {config.label}
-    </span>
-  );
+    toast.success('Withdrawal requested! Paid within 24 hrs.');
+    resetForm();
+  } catch (err) {
+    console.error(err);
+    toast.error('Failed. Try again.');
+  } finally {
+    setLoading(false);
+  }
 };
 
-  if (!userData) {
+  const resetForm = () => {
+    setAmount('');
+    setPaypalEmail('');
+    setBankDetails({ bankName: '', accountName: '', accountNumber: '', swiftCode: '' });
+  };
+
+  const fee = amount ? (parseFloat(amount) * FEE_PERCENTAGE) / 100 : 0;
+  const receive = amount ? parseFloat(amount) - fee : 0;
+
+  const getStatusIcon = (status) => {
+    const config = {
+      pending: { icon: Clock, color: 'text-orange-600', bg: 'bg-orange-50' },
+      completed: { icon: CheckCircle, color: 'text-green-600', bg: 'bg-green-50' },
+      failed: { icon: XCircle, color: 'text-red-600', bg: 'bg-red-50' },
+    }[status] || config.pending;
+
+    const Icon = config.icon;
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900 flex items-center justify-center">
+      <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${config.bg} ${config.color}`}>
+        <Icon className="w-3.5 h-3.5" />
+        {status.charAt(0).toUpperCase() + status.slice(1)}
+      </span>
+    );
+  };
+
+  if (!user || !profile) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 to-indigo-900 flex items-center justify-center">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-amber-400 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-lg text-blue-100">Loading withdrawal...</p>
+          <div className="w-12 h-12 border-4 border-amber-400 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-blue-100">Loading...</p>
         </div>
       </div>
     );
@@ -180,204 +248,286 @@ function WithdrawPage() {
 
   return (
     <>
-      <ToastContainer position="top-center" theme="light" />
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900 py-8 px-4">
-        <div className="max-w-5xl mx-auto">
-          <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-blue-100 hover:text-white mb-6">
-            <ArrowLeft className="w-5 h-5" /> Back to Dashboard
-          </button>
+      <ToastContainer position="top-center" theme="light" autoClose={3000} />
 
-          <h1 className="text-4xl font-black text-white mb-2">Withdraw Earnings</h1>
-          <p className="text-blue-100 mb-8">Request payout via M-Pesa, PayPal or Bank</p>
+      {/* MODAL ONLY ON SUBMIT FAILURE */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
+            <div className="flex justify-between items-start mb-5">
+              <h3 className="text-xl font-bold text-slate-900">Cannot Withdraw</h3>
+              <button
+                onClick={() => setShowModal(false)}
+                className="p-1 hover:bg-slate-100 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
 
-          <div className="grid lg:grid-cols-3 gap-6">
-            {/* Main Form */}
-            <div className="lg:col-span-2 space-y-6">
-              {/* Balance Card */}
-              <div className="bg-white/95 backdrop-blur-xl rounded-3xl p-8 border border-amber-400/20 shadow-2xl">
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <p className="text-slate-600 text-sm font-medium">Available Balance</p>
-                    <h2 className="text-5xl font-black text-slate-800">
-                      ${(balanceUSD).toFixed(2)}
-                    </h2>
-                    <p className="text-sm text-slate-500 mt-1">{formatKES(balanceKES)}</p>
-                  </div>
-                  <div className="w-14 h-14 bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl flex items-center justify-center">
-                    <DollarSign className="w-7 h-7 text-white" />
-                  </div>
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                {eligibility.isThursday ? (
+                  <Check className="w-5 h-5 text-green-600" />
+                ) : (
+                  <XIcon className="w-5 h-5 text-red-600" />
+                )}
+                <div>
+                  <p className="font-medium">Today is Thursday</p>
+                  <p className="text-xs text-slate-500">
+                    {eligibility.isThursday ? 'Allowed' : 'Only Thursdays'}
+                  </p>
                 </div>
-                <p className="text-slate-600 text-sm">
-                  Min: ${MIN_WITHDRAWAL_USD} ({formatKES(minWithdrawalKES)}) • Fee: {FEE_PERCENTAGE}%
-                </p>
               </div>
 
-              <div className="bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl p-6 border border-amber-400/20">
-                <h2 className="text-xl font-black text-slate-800 mb-6">Withdrawal Request</h2>
-
-                {/* Amount */}
-                <div className="mb-6">
-                  <label className="block text-sm font-bold text-slate-700 mb-2">Amount (USD)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={amountUSD}
-                    onChange={(e) => setAmountUSD(e.target.value)}
-                    className="w-full px-5 py-4 text-2xl font-bold border-2 border-slate-300 rounded-xl focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20 transition"
-                    placeholder="10.00"
-                  />
-                  <p className="text-xs text-slate-500 mt-1 ml-1">
-                    {amountUSD ? formatKES(parseFloat(amountUSD) * EXCHANGE_RATE) : ''}
+              <div className="flex items-center gap-3">
+                {eligibility.minAmount ? (
+                  <Check className="w-5 h-5 text-green-600" />
+                ) : (
+                  <XIcon className="w-5 h-5 text-red-600" />
+                )}
+                <div>
+                  <p className="font-medium">≥ $10.20 after fee</p>
+                  <p className="text-xs text-slate-500">
+                    You entered ${amount || '0'} • Balance: ${balance.toFixed(2)}
                   </p>
+                </div>
+              </div>
 
-                  <div className="flex gap-3 mt-3">
-                    {[10, 25, 50, 100].map(usd => {
-                      // const kes = usd * EXCHANGE_RATE;
-                      return (
-                        <button 
-                          key={usd} 
-                          type="button" 
-                          onClick={() => setAmountUSD(usd.toFixed(2))} 
-                          disabled={usd > balanceUSD}
-                          className="px-5 py-2 bg-amber-100 text-amber-700 rounded-lg font-bold disabled:opacity-50 hover:bg-amber-200 transition"
-                        >
-                          ${usd}
-                        </button>
-                      );
-                    })}
-                    <button 
-                      type="button" 
-                      onClick={() => setAmountUSD(balanceUSD.toFixed(2))}
-                      className="px-5 py-2 bg-gradient-to-r from-amber-400 to-orange-500 text-slate-900 rounded-lg font-bold hover:shadow-md transition"
+              <div className="flex items-center gap-3">
+                {eligibility.minTasks ? (
+                  <Check className="w-5 h-5 text-green-600" />
+                ) : (
+                  <XIcon className="w-5 h-5 text-red-600" />
+                )}
+                <div>
+                  <p className="font-medium">≥ 15 tasks completed</p>
+                  <p className="text-xs text-slate-500">
+                    You have {profile.completedTasks || 0}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setShowModal(false)}
+              className="mt-6 w-full bg-slate-100 text-slate-700 font-bold py-3 rounded-xl hover:bg-slate-200 transition"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 to-indigo-900 py-6 px-4">
+        <div className="max-w-4xl mx-auto">
+          <button
+            onClick={() => navigate(-1)}
+            className="flex items-center gap-2 text-blue-100 hover:text-white mb-6 text-sm"
+          >
+            <ArrowLeft className="w-4 h-4" /> Back
+          </button>
+
+          <h1 className="text-3xl font-black text-white mb-2">Withdraw Earnings</h1>
+          <p className="text-blue-100 mb-8">Loyalty pays — every Thursday</p>
+
+          <div className="grid lg:grid-cols-3 gap-6">
+            {/* Form */}
+            <div className="lg:col-span-2">
+              <div className="bg-white rounded-2xl p-6 shadow-xl border border-slate-200">
+                <div className="flex justify-between items-center mb-6 pb-4 border-b">
+                  <div>
+                    <p className="text-sm text-slate-600">Available Balance</p>
+                    <p className="text-3xl font-black text-slate-900">${balance.toFixed(2)}</p>
+                    <p className="text-xs text-slate-500">{formatKES(balance)}</p>
+                  </div>
+                  <DollarSign className="w-10 h-10 text-amber-500" />
+                </div>
+
+                <form onSubmit={handleSubmit} className="space-y-5">
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">
+                      Amount (USD) – Min $10.20 after fee
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value)}
+                      className="w-full px-4 py-3 border-2 border-slate-300 rounded-lg focus:border-amber-400 focus:ring focus:ring-amber-200 transition"
+                      placeholder="10.20"
+                      min={MIN_AFTER_FEE_USD}
+                      max={balance}
+                    />
+                    {amount && parseFloat(amount) >= MIN_AFTER_FEE_USD && (
+                      <div className="mt-3 p-3 bg-green-50 rounded-lg text-sm">
+                        <div className="flex justify-between">
+                          <span>Fee (2%)</span>
+                          <span className="font-medium">-${fee.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between font-bold text-green-700">
+                          <span>You Receive</span>
+                          <span>${receive.toFixed(2)}</span>
+                        </div>
+                        <p className="text-xs text-slate-600 mt-1">
+                          ≈ {formatKES(receive)}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex gap-2 flex-wrap">
+                    {[10.20, 25, 50].map((val) => (
+                      <button
+                        key={val}
+                        type="button"
+                        onClick={() => setAmount(val.toFixed(2))}
+                        disabled={val > balance}
+                        className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg text-sm font-medium hover:bg-amber-100 disabled:opacity-50 transition"
+                      >
+                        ${val}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setAmount(balance.toFixed(2))}
+                      className="px-4 py-2 bg-gradient-to-r from-amber-400 to-orange-500 text-slate-900 rounded-lg text-sm font-bold hover:shadow transition"
                     >
                       Max
                     </button>
                   </div>
 
-                  {amountUSD && parseFloat(amountUSD) >= MIN_WITHDRAWAL_USD && (
-                    <div className="mt-4 p-4 bg-green-50 rounded-xl border border-green-200">
-                      <div className="flex justify-between text-sm">
-                        <span>Amount</span>
-                        <strong>${parseFloat(amountUSD).toFixed(2)}</strong>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span>Fee ({FEE_PERCENTAGE}%)</span>
-                        <strong>-${calculateFeeUSD(parseFloat(amountUSD))}</strong>
-                      </div>
-                      <div className="flex justify-between text-lg font-bold text-green-700 mt-2">
-                        <span>You Receive</span>
-                        <span>${calculateTotalUSD(parseFloat(amountUSD))}</span>
-                      </div>
-                      <p className="text-xs text-slate-600 mt-2">
-                        ≈ {formatKES(parseFloat(amountUSD) * EXCHANGE_RATE)} KES
-                      </p>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-3">Method</label>
+                    <div className="grid grid-cols-3 gap-3">
+                      {[
+                        { id: 'mpesa', label: 'M-Pesa', icon: Smartphone, color: 'green' },
+                        { id: 'paypal', label: 'PayPal', icon: CreditCard, color: 'blue' },
+                        { id: 'bank', label: 'Bank', icon: Building2, color: 'purple' },
+                      ].map((opt) => {
+                        const Icon = opt.icon;
+                        return (
+                          <label
+                            key={opt.id}
+                            className={`flex flex-col items-center p-4 rounded-xl border-2 cursor-pointer transition ${
+                              method === opt.id
+                                ? `border-${opt.color}-500 bg-${opt.color}-50`
+                                : 'border-slate-300 hover:border-slate-400'
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              name="method"
+                              value={opt.id}
+                              checked={method === opt.id}
+                              onChange={(e) => setMethod(e.target.value)}
+                              className="sr-only"
+                            />
+                            <Icon className={`w-6 h-6 mb-1 ${method === opt.id ? `text-${opt.color}-600` : 'text-slate-600'}`} />
+                            <span className="text-xs font-medium">{opt.label}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {method === 'mpesa' && (
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">
+                        M-Pesa Number (07xx, +2547xx, etc.)
+                      </label>
+                      <input
+                        type="tel"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        placeholder="0712345678"
+                        className="w-full px-4 py-3 border-2 border-green-400 rounded-lg focus:ring focus:ring-green-200"
+                      />
                     </div>
                   )}
-                </div>
 
-                {/* Payment Method */}
-                <div className="mb-6">
-                  <label className="block text-sm font-bold text-slate-700 mb-3">Payment Method</label>
-                  <div className="grid grid-cols-3 gap-4">
-                    {[
-                      { id: 'mpesa', label: 'M-Pesa', icon: Smartphone, color: 'green' },
-                      { id: 'paypal', label: 'PayPal', icon: CreditCard, color: 'blue' },
-                      { id: 'bank', label: 'Bank', icon: Building2, color: 'purple' }
-                    ].map(opt => {
-                      const Icon = opt.icon;
-                      return (
-                        <label key={opt.id} className={`cursor-pointer p-6 rounded-xl border-2 text-center transition ${method === opt.id ? `border-${opt.color}-600 bg-${opt.color}-50` : 'border-slate-300'}`}>
-                          <input type="radio" name="method" value={opt.id} checked={method === opt.id} onChange={(e) => setMethod(e.target.value)} className="sr-only" />
-                          <Icon className={`w-10 h-10 mx-auto mb-2 ${method === opt.id ? `text-${opt.color}-600` : 'text-slate-600'}`} />
-                          <span className="font-bold text-slate-700">{opt.label}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* M-Pesa */}
-                {method === 'mpesa' && (
-                  <div className="bg-green-50 p-5 rounded-xl border-2 border-green-300">
-                    <label className="block font-bold text-green-900 mb-2">M-Pesa Number</label>
-                    <input 
-                      type="tel" 
-                      value={phone} 
-                      onChange={(e) => setPhone(e.target.value)} 
-                      placeholder="+254712345678" 
-                      className="w-full px-4 py-3 rounded-lg border-2 border-green-400 focus:ring-2 focus:ring-green-400/20"
+                  {method === 'paypal' && (
+                    <input
+                      type="email"
+                      value={paypalEmail}
+                      onChange={(e) => setPaypalEmail(e.target.value)}
+                      placeholder="you@paypal.com"
+                      className="w-full px-4 py-3 border-2 border-blue-400 rounded-lg focus:ring focus:ring-blue-200"
                     />
-                  </div>
-                )}
+                  )}
 
-                {/* PayPal */}
-                {method === 'paypal' && (
-                  <div className="bg-blue-50 p-5 rounded-xl border-2 border-blue-300">
-                    <label className="block font-bold text-blue-900 mb-2">PayPal Email</label>
-                    <input 
-                      type="email" 
-                      value={paypalEmail} 
-                      onChange={(e) => setPaypalEmail(e.target.value)} 
-                      placeholder="you@paypal.com" 
-                      className="w-full px-4 py-3 rounded-lg border-2 border-blue-400 focus:ring-2 focus:ring-blue-400/20"
-                    />
-                  </div>
-                )}
+                  {method === 'bank' && (
+                    <div className="space-y-3">
+                      {['bankName', 'accountName', 'accountNumber', 'swiftCode'].map((field) => (
+                        <input
+                          key={field}
+                          type="text"
+                          value={bankDetails[field]}
+                          onChange={(e) =>
+                            setBankDetails({ ...bankDetails, [field]: e.target.value })
+                          }
+                          placeholder={
+                            field === 'swiftCode' ? 'SWIFT (optional)' : field.replace(/([A-Z])/g, ' $1').trim()
+                          }
+                          className="w-full px-4 py-3 border-2 border-purple-400 rounded-lg focus:ring focus:ring-purple-200"
+                        />
+                      ))}
+                    </div>
+                  )}
 
-                {/* Bank */}
-                {method === 'bank' && (
-                  <div className="space-y-4 bg-purple-50 p-5 rounded-xl border-2 border-purple-300">
-                    <input type="text" value={bankName} onChange={(e) => setBankName(e.target.value)} placeholder="Bank Name" className="w-full px-4 py-3 rounded-lg border-2 border-purple-400 focus:ring-2 focus:ring-purple-400/20" />
-                    <input type="text" value={accountName} onChange={(e) => setAccountName(e.target.value)} placeholder="Account Holder" className="w-full px-4 py-3 rounded-lg border-2 border-purple-400 focus:ring-2 focus:ring-purple-400/20" />
-                    <input type="text" value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} placeholder="Account Number" className="w-full px-4 py-3 rounded-lg border-2 border-purple-400 focus:ring-2 focus:ring-purple-400/20" />
-                    <input type="text" value={swiftCode} onChange={(e) => setSwiftCode(e.target.value)} placeholder="SWIFT Code (optional)" className="w-full px-4 py-3 rounded-lg border-2 border-purple-400 focus:ring-2 focus:ring-purple-400/20" />
-                  </div>
-                )}
-
-                <button
-                  onClick={handleWithdraw}
-                  disabled={loading || !amountUSD || parseFloat(amountUSD) < MIN_WITHDRAWAL_USD || parseFloat(amountUSD) > balanceUSD}
-                  className="w-full bg-gradient-to-r from-amber-400 to-orange-500 text-slate-900 font-black text-xl py-5 rounded-xl hover:shadow-2xl transform hover:scale-105 transition disabled:opacity-50 disabled:transform-none"
-                >
-                  {loading ? 'Processing...' : 'Submit Withdrawal'}
-                </button>
+                  <button
+                    type="submit"
+                    disabled={loading || !amount}
+                    className="w-full bg-gradient-to-r from-amber-400 to-orange-500 text-slate-900 font-bold py-4 rounded-xl hover:shadow-xl transform hover:scale-[1.02] transition disabled:opacity-50 disabled:transform-none"
+                  >
+                    {loading ? 'Processing...' : 'Request Withdrawal'}
+                  </button>
+                </form>
               </div>
             </div>
 
             {/* Sidebar */}
-            <div className="space-y-6">
-              <div className="bg-white/95 backdrop-blur-xl p-6 rounded-3xl border border-amber-400/20">
-                <h3 className="font-black flex items-center gap-2 mb-4 text-slate-800">
-                  <Calendar className="w-5 h-5 text-amber-400" /> Payout Schedule
+            <div className="space-y-5">
+              <div className="bg-white p-5 rounded-2xl shadow border border-slate-200">
+                <h3 className="font-bold flex items-center gap-2 mb-3">
+                  <Calendar className="w-5 h-5 text-amber-500" /> Payout Schedule
                 </h3>
-                <p className="text-sm text-slate-600">• M-Pesa: <strong>Instant</strong></p>
-                <p className="text-sm text-slate-600">• PayPal: <strong>24-48 hrs</strong></p>
-                <p className="text-sm text-slate-600">• Bank: <strong>2-3 days</strong></p>
+                <div className="text-sm space-y-1 text-slate-600">
+                  <p>M-Pesa: <strong>Instant</strong></p>
+                  <p>PayPal: <strong>24–48 hrs</strong></p>
+                  <p>Bank: <strong>2–3 days</strong></p>
+                </div>
               </div>
 
-              <div className="bg-amber-50 p-6 rounded-3xl border-2 border-amber-300">
-                <h3 className="font-black flex items-center gap-2 mb-3 text-slate-800">
-                  <AlertCircle className="w-5 h-5 text-amber-600" /> Rules
+              <div className="bg-amber-50 p-5 rounded-2xl border-2 border-amber-300">
+                <h3 className="font-bold flex items-center gap-2 mb-2">
+                  <AlertCircle className="w-5 h-5 text-amber-600" /> Loyalty Rules
                 </h3>
-                <ul className="text-sm space-y-2 text-slate-700">
-                  <li>• Min: <strong>${MIN_WITHDRAWAL_USD}</strong> ({formatKES(minWithdrawalKES)})</li>
-                  <li>• Fee: <strong>{FEE_PERCENTAGE}%</strong></li>
-                  <li>• Paid every Monday & Thursday</li>
+                <ul className="text-xs space-y-1 text-slate-700">
+                  <li>• Only on <strong>Thursdays</strong></li>
+                  <li>• Min <strong>$10.20</strong> (after 2% fee)</li>
+                  <li>• Complete <strong>15 tasks</strong></li>
                 </ul>
               </div>
 
-              <div className="bg-white/95 backdrop-blur-xl p-6 rounded-3xl border border-amber-400/20">
-                <h3 className="font-black mb-4 text-slate-800">Recent Withdrawals</h3>
-                {recentWithdrawals.length > 0 ? recentWithdrawals.map(w => (
-                  <div key={w.id} className="flex justify-between items-center py-3 border-b border-slate-200 last:border-0">
-                    <div>
-                      <p className="font-bold text-slate-800">${w.amount.toFixed(2)}</p>
-                      <p className="text-xs text-slate-500">{formatKES(w.amount * EXCHANGE_RATE)}</p>
-                      <p className="text-xs text-slate-500">{w.requestedAt?.toLocaleDateString()}</p>
-                    </div>
-                    {getStatusBadge(w.status)}
+              <div className="bg-white p-5 rounded-2xl shadow border border-slate-200">
+                <h3 className="font-bold mb-3">Recent Withdrawals</h3>
+                {withdrawals.length > 0 ? (
+                  <div className="space-y-3">
+                    {withdrawals.map((w) => (
+                      <div key={w.id} className="flex justify-between items-center text-sm">
+                        <div>
+                          <p className="font-bold">${w.amount.toFixed(2)}</p>
+                          <p className="text-xs text-slate-500">
+                            {w.requestedAt?.toLocaleDateString()} • {w.method}
+                          </p>
+                        </div>
+                        {getStatusIcon(w.status)}
+                      </div>
+                    ))}
                   </div>
-                )) : <p className="text-center text-slate-500 py-4">No history</p>}
+                ) : (
+                  <p className="text-center text-slate-500 text-sm">No history</p>
+                )}
               </div>
             </div>
           </div>
@@ -385,6 +535,6 @@ function WithdrawPage() {
       </div>
     </>
   );
-}
+};
 
 export default WithdrawPage;

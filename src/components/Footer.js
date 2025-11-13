@@ -1,63 +1,64 @@
 // src/components/Footer.js
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React from "react";
+import { Link } from "react-router-dom";
 
 function Footer() {
-  const scrollToSection = (sectionId) => {
-    const element = document.getElementById(sectionId);
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth' });
-    }
+  const scrollToSection = (id) => {
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: "smooth" });
   };
 
   return (
-    <footer className="bg-slate-900 text-white py-16 border-t border-white/10">
-      <div className="max-w-7xl mx-auto px-4">
+    <footer className="bg-slate-900 text-white py-10 border-t border-white/10 text-sm">
+      <div className="max-w-7xl mx-auto px-4 space-y-10">
         {/* Top Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10 mb-12">
-          
-          {/* Brand + Trust */}
-          <div className="space-y-6">
-            <div className="flex items-center space-x-3">
-              <div className="text-3xl font-black text-amber-400">Outlier AI</div>
-              <span className="text-xs bg-amber-400/20 px-3 py-1 rounded-full">by ComoAI Labs</span>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+          {/* Brand */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <span className="text-xl font-black text-amber-400">Outlier AI</span>
+              <span className="text-xs bg-amber-400/20 px-2 py-0.5 rounded-full">
+                by ComoAI Labs
+              </span>
             </div>
-            <p className="text-gray-300 leading-relaxed">
-              Join 50,000+ members earning $15–$50/hour training AI from home.<br />
-              No experience required. Paid weekly.
+            <p className="text-slate-300 leading-relaxed">
+              50,000+ members earning $15–$50/hr training AI from home.
+              <br />No experience needed • Paid weekly
             </p>
-            
-            {/* Trust Badges */}
-            <div className="flex flex-wrap gap-4 text-xs">
-              <div className="flex items-center gap-2 bg-white/10 px-3 py-2 rounded-lg">
-                <svg className="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+
+            <div className="flex flex-wrap gap-3 text-xs">
+              <div className="flex items-center gap-1 bg-white/10 px-3 py-1.5 rounded-md">
+                <svg className="w-3.5 h-3.5 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path
+                    fillRule="evenodd"
+                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                    clipRule="evenodd"
+                  />
                 </svg>
-                <span>$12M+ paid out</span>
+                <span>$12M+ paid</span>
               </div>
-              <div className="flex items-center gap-2 bg-white/10 px-3 py-2 rounded-lg">
-                <svg className="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              <div className="flex items-center gap-1 bg-white/10 px-3 py-1.5 rounded-md">
+                <svg className="w-3.5 h-3.5 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path
+                    fillRule="evenodd"
+                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                    clipRule="evenodd"
+                  />
                 </svg>
-                <span>4.9/5 from 12K+ reviews</span>
+                <span>4.9★ from 12K+</span>
               </div>
             </div>
           </div>
 
           {/* Community */}
           <div>
-            <h4 className="text-lg font-bold mb-5 text-amber-400">Community</h4>
-            <ul className="space-y-3 text-gray-300">
-              <li><button onClick={() => scrollToSection('tasks')} className="hover:text-amber-400 transition">Available AI Jobs</button></li>
-              <li><button onClick={() => scrollToSection('how-it-works')} className="hover:text-amber-400 transition">How It Works</button></li>
-              <li><Link to="/success-stories" className="hover:text-amber-400 transition">Success Stories</Link></li>
+            <h4 className="text-base font-bold mb-3 text-amber-400">Community</h4>
+            <ul className="space-y-2 text-slate-300">
+              <li><button onClick={() => scrollToSection("jobs")} className="hover:text-amber-400">AI Jobs</button></li>
+              <li><button onClick={() => scrollToSection("how")} className="hover:text-amber-400">How It Works</button></li>
+              <li><Link to="/success-stories" className="hover:text-amber-400">Success Stories</Link></li>
               <li>
-                <a 
-                  href="https://discord.gg/Outlier AI" 
-                  target="_blank" 
-                  rel="noopener noreferrer" 
-                  className="hover:text-amber-400 transition"
-                >
+                <a href="https://discord.gg/outlierai" target="_blank" rel="noreferrer" className="hover:text-amber-400">
                   Join Discord
                 </a>
               </li>
@@ -66,35 +67,34 @@ function Footer() {
 
           {/* Resources */}
           <div>
-            <h4 className="text-lg font-bold mb-5 text-amber-400">Resources</h4>
-            <ul className="space-y-3 text-gray-300">
-              <li><Link to="/training-center" className="hover:text-amber-400 transition">Free Training Center</Link></li>
-              <li><Link to="/blog" className="hover:text-amber-400 transition">Blog & Updates</Link></li>
-              <li><Link to="/payment-proof" className="hover:text-amber-400 transition">Payment Proof</Link></li>
-              <li><Link to="/faq" className="hover:text-amber-400 transition">FAQ</Link></li>
+            <h4 className="text-base font-bold mb-3 text-amber-400">Resources</h4>
+            <ul className="space-y-2 text-slate-300">
+              <li><Link to="/training-center" className="hover:text-amber-400">Training Center</Link></li>
+              <li><Link to="/blog" className="hover:text-amber-400">Blog</Link></li>
+              <li><Link to="/payment-proof" className="hover:text-amber-400">Payment Proof</Link></li>
+              <li><Link to="/faq" className="hover:text-amber-400">FAQ</Link></li>
             </ul>
           </div>
 
           {/* Support */}
           <div>
-            <h4 className="text-lg font-bold mb-5 text-amber-400">Support</h4>
-            <ul className="space-y-3 text-gray-300">
-              <li><a href="mailto:support@Outlier AI.com" className="hover:text-amber-400 transition">support@Outlier AI.com</a></li>
-              <li><Link to="/contact" className="hover:text-amber-400 transition">Contact Us</Link></li>
-              <li><Link to="/terms" className="hover:text-amber-400 transition">Terms of Service</Link></li>
-              <li><Link to="/privacy" className="hover:text-amber-400 transition">Privacy Policy</Link></li>
+            <h4 className="text-base font-bold mb-3 text-amber-400">Support</h4>
+            <ul className="space-y-2 text-slate-300">
+              <li><a href="mailto:support@outlierai.com" className="hover:text-amber-400">support@outlierai.com</a></li>
+              <li><Link to="/contact" className="hover:text-amber-400">Contact Us</Link></li>
+              <li><Link to="/terms" className="hover:text-amber-400">Terms</Link></li>
+              <li><Link to="/privacy" className="hover:text-amber-400">Privacy</Link></li>
             </ul>
           </div>
         </div>
 
         {/* Bottom Bar */}
-        <div className="pt-10 border-t border-white/10 flex flex-col md:flex-row justify-between items-center text-sm text-gray-400">
-          <p>© 2025 Outlier AI by ComoAI Labs. All rights reserved.</p>
-          <div className="flex gap-6 mt-4 md:mt-0">
-            {/* Fixed: Use button + real links or proper href */}
-            <a href="https://twitter.com/Outlier AI" target="_blank" rel="noopener noreferrer" className="hover:text-amber-400 transition">Twitter</a>
-            <a href="https://linkedin.com/company/Outlier AI" target="_blank" rel="noopener noreferrer" className="hover:text-amber-400 transition">LinkedIn</a>
-            <a href="https://youtube.com/@Outlier AI" target="_blank" rel="noopener noreferrer" className="hover:text-amber-400 transition">YouTube</a>
+        <div className="pt-6 border-t border-white/10 flex flex-col md:flex-row justify-between items-center text-xs text-slate-400">
+          <p>© 2025 Outlier AI by ComoAI Labs</p>
+          <div className="flex gap-4 mt-3 md:mt-0">
+            <a href="https://twitter.com/outlierai" target="_blank" rel="noreferrer" className="hover:text-amber-400">Twitter</a>
+            <a href="https://linkedin.com/company/outlierai" target="_blank" rel="noreferrer" className="hover:text-amber-400">LinkedIn</a>
+            <a href="https://youtube.com/@outlierai" target="_blank" rel="noreferrer" className="hover:text-amber-400">YouTube</a>
           </div>
         </div>
       </div>

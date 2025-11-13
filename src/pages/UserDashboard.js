@@ -26,6 +26,9 @@ import {
   PlayCircle,
   RefreshCw,
   CheckCircle2,
+  Lock,
+  Bell,
+  User
 } from 'lucide-react';
 import { ToastContainer, toast } from 'react-toastify';
 import Confetti from 'react-confetti';
@@ -33,8 +36,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import availableTasks from '../data/availableTasks';
 import { useAuth } from '../context/AuthContext';
 
-
-const EXCHANGE_RATE = 129.55; // 1 USD = 129.55 KES
+const EXCHANGE_RATE = 129.55;
 const formatKES = (usd) =>
   `Ksh.${(usd * EXCHANGE_RATE)
     .toFixed(2)
@@ -89,7 +91,6 @@ const statusConfig = {
   },
 };
 
-/* ────────────────────── Phone helpers ────────────────────── */
 const normalizePhoneNumber = (input) => {
   if (!input) return null;
   const cleaned = input.replace(/\D/g, '');
@@ -105,9 +106,8 @@ const normalizePhoneNumber = (input) => {
 const isValidMpesaNumber = (input) =>
   /^0[17]\d{8}$/.test(input) || /^\+254[17]\d{8}$/.test(input);
 
-/* ────────────────────── Main Component ────────────────────── */
 const UserDashboard = () => {
-  const { currentUser } = useAuth();               // <-- fixed
+  const { currentUser } = useAuth();
   const navigate = useNavigate();
 
   const [userProfile, setUserProfile] = useState(null);
@@ -121,8 +121,10 @@ const UserDashboard = () => {
   const [mpesaNumber, setMpesaNumber] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [timeLeft, setTimeLeft] = useState(getNextThursday() - new Date());
+  const [notifications, setNotifications] = useState([]);
+  const [showNotifications, setShowNotifications] = useState(false);
 
-  /* ────── Payout countdown ────── */
+  // Countdown timer
   useEffect(() => {
     const timer = setInterval(() => {
       const diff = getNextThursday() - new Date();
@@ -131,7 +133,7 @@ const UserDashboard = () => {
     return () => clearInterval(timer);
   }, []);
 
-  /* ────── Load profile + daily-task reset ────── */
+  // Load user profile and tasks
   useEffect(() => {
     if (!currentUser) return;
 
@@ -157,33 +159,33 @@ const UserDashboard = () => {
       }
     });
 
-    // Load local myTasks
     const saved = localStorage.getItem(`myTasks_${currentUser.uid}`);
     if (saved) setMyTasks(JSON.parse(saved));
+
+    const savedNotifs = localStorage.getItem(`notifications_${currentUser.uid}`);
+    if (savedNotifs) setNotifications(JSON.parse(savedNotifs));
 
     return () => unsub();
   }, [currentUser]);
 
-  /* ────── Persist myTasks to localStorage ────── */
+  // Persist tasks and notifications
   useEffect(() => {
     if (currentUser && myTasks.length) {
       localStorage.setItem(`myTasks_${currentUser.uid}`, JSON.stringify(myTasks));
     }
   }, [myTasks, currentUser]);
 
-  /* ────── Auto-approval simulation ────── */
+  // Auto-approval simulation
   useEffect(() => {
     const interval = setInterval(() => {
       setMyTasks((prev) => {
         let changed = false;
         const updated = prev.map((task) => {
-          // Schedule approval if not yet scheduled
           if (task.status === 'completed' && !task.approvalScheduled) {
             task.approvalScheduled = Date.now() + (Math.random() * 240000 + 60000);
             changed = true;
           }
 
-          // Actually approve when time is up
           if (
             task.approvalScheduled &&
             Date.now() >= task.approvalScheduled &&
@@ -203,6 +205,14 @@ const UserDashboard = () => {
             toast.success(`+$${task.paymentAmount.toFixed(2)} approved!`, {
               icon: <CheckCircle className="w-5 h-5 text-green-500" />,
             });
+            
+            // Add notification for approved task
+            addNotification(
+              `Task: You have been paid $${task.paymentAmount.toFixed(
+                2
+              )}! Task "${task.title}" has been approved successfully.`
+            );
+            
             setShowConfetti(true);
             setTimeout(() => setShowConfetti(false), 4000);
           }
@@ -218,7 +228,32 @@ const UserDashboard = () => {
     return () => clearInterval(interval);
   }, [currentUser]);
 
-  /* ────── Start a fresh task ────── */
+  // Daily reminder
+  useEffect(() => {
+    if (!currentUser || !userProfile) return;
+
+    const today = new Date().toDateString();
+    const lastReminder = localStorage.getItem(`lastReminder_${currentUser.uid}`);
+
+    if (lastReminder !== today && dailyTasksRemaining > 0) {
+      const startedToday = myTasks.filter(
+        t => new Date(t.startedAt).toDateString() === today
+      ).length;
+
+      if (startedToday === 0) {
+        addNotification(
+          `You still have ${dailyTasksRemaining} task${dailyTasksRemaining > 1 ? 's' : ''} available today. Start now and keep earning!`
+        );
+      } else if (startedToday < dailyTasksRemaining) {
+        addNotification(
+          `You have ${dailyTasksRemaining - startedToday} pending task${dailyTasksRemaining - startedToday > 1 ? 's' : ''} for today. Finish them to stay on track!`
+        );
+      }
+
+      localStorage.setItem(`lastReminder_${currentUser.uid}`, today);
+    }
+  }, [currentUser, userProfile, dailyTasksRemaining, myTasks]);
+
   const startTask = async (task) => {
     const vipTiers = { Bronze: 10, Silver: 20, Gold: 50 };
     const maxAllowed = userProfile?.isVIP
@@ -235,7 +270,7 @@ const UserDashboard = () => {
     }
 
     const newTask = {
-      id: `${task.id}_${Date.now()}`, // unique per attempt
+      id: `${task.id}_${Date.now()}`,
       ...task,
       status: 'in-progress',
       startedAt: new Date(),
@@ -250,11 +285,27 @@ const UserDashboard = () => {
       icon: <Briefcase className="w-5 h-5 text-blue-600" />,
     });
 
-    // NEW: use URL param route
     navigate(`/working/${task.id}`);
   };
 
-  /* ────── VIP Upgrade with STK Push ────── */
+  const addNotification = (msg) => {
+    const newNotif = {
+      id: Date.now().toString(),
+      message: msg,
+      timestamp: new Date().toISOString(),
+      read: false,
+    };
+    const updated = [newNotif, ...notifications];
+    setNotifications(updated);
+    localStorage.setItem(`notifications_${currentUser.uid}`, JSON.stringify(updated));
+  };
+
+  const markAllRead = () => {
+    const updated = notifications.map(n => ({ ...n, read: true }));
+    setNotifications(updated);
+    localStorage.setItem(`notifications_${currentUser.uid}`, JSON.stringify(updated));
+  };
+
   const handleRealVIPUpgrade = async () => {
     if (!selectedVIP) return toast.error('Select a VIP tier');
     const normalized = normalizePhoneNumber(mpesaNumber);
@@ -306,7 +357,6 @@ const UserDashboard = () => {
         }
       }, 3000);
 
-      // timeout after 2 min
       setTimeout(() => {
         if (poll) {
           clearInterval(poll);
@@ -348,7 +398,6 @@ const UserDashboard = () => {
     setIsProcessing(false);
   };
 
-  /* ────── Guard: no user → login ────── */
   if (!currentUser) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900 flex items-center justify-center">
@@ -360,7 +409,7 @@ const UserDashboard = () => {
     );
   }
 
-  /* ────── Today’s stats ────── */
+  // Stats calculations
   const todayTasks = myTasks.filter(
     (t) => new Date(t.startedAt).toDateString() === new Date().toDateString()
   );
@@ -382,12 +431,11 @@ const UserDashboard = () => {
     myTaskMap[originalId] = t;
   });
 
-  /* ────── Render ────── */
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900">
       {showConfetti && <Confetti recycle={false} numberOfPieces={200} gravity={0.3} />}
 
-      {/* ── Header ── */}
+      {/* Header */}
       <header className="bg-white/95 backdrop-blur-xl border-b border-amber-400/20 sticky top-0 z-40 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
@@ -410,9 +458,10 @@ const UserDashboard = () => {
             </div>
 
             <div className="flex items-center gap-4">
+              {/* User Profile */}
               <div className="hidden sm:flex items-center justify-center px-4 py-2 bg-slate-50 rounded-lg border border-slate-200">
                 <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
-                  {userProfile?.name?.[0] ?? 'U'}
+                  {userProfile?.name?.[0] ?? <User className="w-4 h-4" />}
                 </div>
                 <div className="ml-2 text-left">
                   <p className="text-sm font-semibold text-slate-900">
@@ -424,6 +473,18 @@ const UserDashboard = () => {
                 </div>
               </div>
 
+              {/* Notification Bell */}
+              <button
+                onClick={() => setShowNotifications(true)}
+                className="relative p-2 rounded-lg hover:bg-slate-100 transition"
+              >
+                <Bell className="w-5 h-5 text-slate-700" />
+                {notifications.some(n => !n.read) && (
+                  <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" />
+                )}
+              </button>
+
+              {/* Sign Out */}
               <button
                 onClick={() =>
                   auth.signOut().then(() => {
@@ -441,182 +502,264 @@ const UserDashboard = () => {
         </div>
       </header>
 
-      {/* ── Main Grid ── */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Balance + Next Payout */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="md:col-span-2 bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl p-8 border border-amber-400/20">
-            <div className="flex items-start justify-between mb-6">
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-6 py-8">
+        {/* Welcome Header */}
+        <div className="mb-8">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <h1 className="text-2xl font-black text-white">Welcome back 👋</h1>
+            <div className="flex items-center gap-4 text-sm text-blue-100">
               <div>
-                <p className="text-slate-600 text-sm font-medium mb-1">Available Balance</p>
-                <h2 className="text-5xl font-black text-slate-800">
-                  ${(userProfile?.balance ?? 0).toFixed(2)}
-                </h2>
-                <p className="text-sm text-slate-500 mt-1">{formatKES(userProfile?.balance ?? 0)}</p>
+                <p className="text-xs uppercase tracking-wide">Next Payout</p>
+                <div className="flex items-center gap-1 font-semibold text-white">
+                  <Calendar className="w-4 h-4 text-amber-400" />
+                  {formatTime(timeLeft)} <span className="text-xs ml-1">• Every Thursday</span>
+                </div>
               </div>
-              <div className="w-14 h-14 bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl flex items-center justify-center">
-                <DollarSign className="w-7 h-7 text-white" />
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 text-sm text-slate-600 mb-6">
-              <TrendingUp className="w-4 h-4 text-green-500" />
-              <span className="font-medium">
-                +${(userProfile?.thisMonthEarned ?? 0).toFixed(2)} this month
-              </span>
-            </div>
-
-            <button
-              onClick={() => navigate('/withdraw')}
-              className="w-full bg-gradient-to-r from-amber-400 to-orange-500 text-slate-900 font-black text-lg py-4 rounded-xl hover:shadow-2xl transform hover:scale-105 transition"
-            >
-              Withdraw Funds
-            </button>
-          </div>
-
-          <div className="bg-white/95 backdrop-blur-xl rounded-3xl p-6 border border-amber-400/20 text-center">
-            <Calendar className="w-8 h-8 text-amber-400 mx-auto mb-3" />
-            <p className="text-xs text-slate-600 mb-1">Next Payout</p>
-            <p className="text-2xl font-bold text-slate-800">{formatTime(timeLeft)}</p>
-            <p className="text-xs text-slate-500 mt-1">Every Thursday</p>
-          </div>
-        </div>
-
-        {/* Today’s quick stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-8">
-          <div className="bg-white/95 backdrop-blur-xl rounded-2xl p-5 border border-amber-400/20 text-center">
-            <Activity className="w-6 h-6 text-blue-600 mx-auto mb-2" />
-            <p className="text-xs text-slate-600">Today’s Earnings</p>
-            <p className="text-2xl font-bold text-green-600">${todayEarnings.toFixed(2)}</p>
-          </div>
-          <div className="bg-white/95 backdrop-blur-xl rounded-2xl p-5 border border-amber-400/20 text-center">
-            <CheckCircle className="w-6 h-6 text-green-600 mx-auto mb-2" />
-            <p className="text-xs text-slate-600">Tasks Completed</p>
-            <p className="text-2xl font-bold text-slate-800">{approvedCount}</p>
-          </div>
-          <div className="bg-white/95 backdrop-blur-xl rounded-2xl p-5 border border-amber-400/20 text-center">
-            <Clock className="w-6 h-6 text-orange-500 mx-auto mb-2" />
-            <p className="text-xs text-slate-600">Under Review</p>
-            <p className="text-2xl font-bold text-orange-500">{completedCount}</p>
-          </div>
-        </div>
-
-        {/* Available Tasks */}
-        <div className="bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl p-6 border border-amber-400/20">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-xl font-black text-slate-800 flex items-center gap-2">
-              <Briefcase className="w-5 h-5 text-amber-400" />
-              Available Tasks
-            </h3>
-            <span className="text-sm text-slate-500">{filteredTasks.length} tasks</span>
-          </div>
-
-          {/* Category pills */}
-          <div className="flex gap-2 overflow-x-auto pb-3 mb-6">
-            {categories.map((cat) => (
               <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition ${
-                  selectedCategory === cat
-                    ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-slate-900 shadow-sm'
-                    : 'bg-white/80 text-slate-600 border border-slate-300 hover:bg-white'
-                }`}
+                onClick={() => navigate("/withdraw")}
+                className="bg-gradient-to-r from-amber-400 to-orange-500 text-slate-900 font-bold px-5 py-2.5 rounded-lg shadow-sm hover:shadow-md transition"
               >
-                {cat === 'all' ? 'All Tasks' : cat}
+                Withdraw
               </button>
-            ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Consolidated Stats Dashboard */}
+        <section className="mb-10">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            
+            {/* Financial Overview */}
+            <div className="bg-gradient-to-br from-slate-800 to-slate-700 rounded-2xl p-6 text-white">
+              <h2 className="text-lg font-semibold mb-6 text-slate-200">Financial Overview</h2>
+              
+              <div className="space-y-5">
+                {/* Available Balance */}
+                <div className="bg-white/10 rounded-xl p-4 backdrop-blur-sm">
+                  <div className="flex justify-between items-center mb-2">
+                    <p className="text-slate-300 text-sm">Available Balance</p>
+                    <DollarSign className="w-5 h-5 text-amber-400" />
+                  </div>
+                  <h2 className="text-3xl font-black">${(userProfile?.balance ?? 0).toFixed(2)}</h2>
+                  <p className="text-slate-400 text-xs mt-1">{formatKES(userProfile?.balance ?? 0)}</p>
+                </div>
+
+                {/* Monthly & Today Earnings */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-white/5 rounded-lg p-4">
+                    <div className="flex justify-between items-start mb-1">
+                      <p className="text-slate-400 text-xs">This Month</p>
+                      <TrendingUp className="w-4 h-4 text-green-400" />
+                    </div>
+                    <h3 className="text-xl font-bold text-green-400">
+                      +${(userProfile?.thisMonthEarned ?? 0).toFixed(2)}
+                    </h3>
+                  </div>
+
+                  <div className="bg-white/5 rounded-lg p-4">
+                    <div className="flex justify-between items-start mb-1">
+                      <p className="text-slate-400 text-xs">Today</p>
+                      <Activity className="w-4 h-4 text-blue-400" />
+                    </div>
+                    <h3 className="text-xl font-bold text-blue-400">${todayEarnings.toFixed(2)}</h3>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Task Performance */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-6">
+              <h2 className="text-lg font-semibold mb-6 text-slate-900">Task Performance</h2>
+              
+              <div className="space-y-5">
+                {/* Progress Bar */}
+                <div className="space-y-3">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-600">Daily Progress</span>
+                    <span className="font-semibold text-slate-900">{dailyTasksRemaining} tasks left</span>
+                  </div>
+                  <div className="w-full bg-slate-100 rounded-full h-2">
+                    <div 
+                      className="bg-gradient-to-r from-amber-400 to-orange-500 h-2 rounded-full transition-all duration-500"
+                      style={{ 
+                        width: `${Math.max(0, ((10 - dailyTasksRemaining) / 10) * 100)}%` 
+                      }}
+                    ></div>
+                  </div>
+                </div>
+
+                {/* Task Stats */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="text-center p-4 bg-green-50 rounded-xl border border-green-100">
+                    <CheckCircle className="w-8 h-8 text-green-600 mx-auto mb-2" />
+                    <p className="text-xs text-green-800 mb-1">Approved</p>
+                    <h3 className="text-2xl font-bold text-green-900">{approvedCount}</h3>
+                  </div>
+
+                  <div className="text-center p-4 bg-orange-50 rounded-xl border border-orange-100">
+                    <Clock className="w-8 h-8 text-orange-600 mx-auto mb-2" />
+                    <p className="text-xs text-orange-800 mb-1">In Review</p>
+                    <h3 className="text-2xl font-bold text-orange-900">{completedCount}</h3>
+                  </div>
+                </div>
+
+                {/* Completion Rate */}
+                <div className="bg-slate-50 rounded-xl p-4">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-slate-600">Completion Rate</span>
+                    <span className="font-semibold text-slate-900">
+                      {approvedCount + completedCount > 0 
+                        ? Math.round((approvedCount / (approvedCount + completedCount)) * 100) 
+                        : 0}%
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Available Tasks Section */}
+        <section className="bg-white rounded-2xl border border-slate-200 p-6">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+              <Briefcase className="w-5 h-5 text-amber-500" />
+              Available Tasks
+              <span className="text-sm text-slate-500 font-normal ml-2">
+                ({filteredTasks.length} total)
+              </span>
+            </h2>
           </div>
 
-          {/* Task cards */}
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {/* Categories Filter */}
+          <div className="mb-8">
+            <div className="flex gap-3 overflow-x-auto scrollbar-hide py-2">
+              {categories.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`
+                    px-5 py-2.5 rounded-full text-sm font-medium whitespace-nowrap
+                    transition-all duration-300 ease-out flex-shrink-0
+                    focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2
+                    ${selectedCategory === cat
+                      ? "bg-gradient-to-r from-amber-400 to-amber-500 text-slate-900 shadow-lg shadow-amber-400/30"
+                      : "bg-white border border-slate-200 text-slate-700 hover:border-amber-300 hover:text-slate-900"
+                    }
+                  `}
+                >
+                  {cat === "all" ? "All Categories" : cat.charAt(0).toUpperCase() + cat.slice(1)}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Task Grid */}
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {filteredTasks.map((task) => {
               const myTask = myTaskMap[task.id];
-              const isDone = myTask && ['completed', 'approved'].includes(myTask.status);
-              const isInProgress = myTask?.status === 'in-progress';
+              const isDone = myTask && ["completed", "approved"].includes(myTask.status);
+              const isInProgress = myTask?.status === "in-progress";
               const cfg = myTask ? statusConfig[myTask.status] : null;
               const Icon = cfg?.icon;
 
               return (
                 <div
                   key={task.id}
-                  className={`bg-white/80 rounded-2xl p-5 border transition-all group ${
-                    isDone
-                      ? 'border-slate-200 opacity-70 bg-slate-50'
-                      : 'border-slate-200 hover:border-amber-400 hover:shadow-lg'
-                  }`}
+                  className={`
+                    group relative rounded-xl border border-slate-200 bg-white 
+                    transition-all duration-300 hover:shadow-lg hover:shadow-slate-200/50
+                    overflow-hidden h-full flex flex-col 
+                    ${isDone ? "opacity-75 grayscale-[20%]" : ""}
+                  `}
                 >
-                  <div className="flex items-start justify-between mb-3">
-                    <span
-                      className={`text-xs font-semibold px-3 py-1 rounded-full border ${difficultyColors[task.difficulty]}`}
-                    >
-                      {task.difficulty}
-                    </span>
-                    <div className="text-right">
-                      <div className="text-2xl font-bold text-slate-900">${task.paymentAmount}</div>
-                      <div className="text-xs text-slate-500">{task.duration}</div>
+                  {/* Accent bar */}
+                  <div className={`absolute top-0 left-0 w-1 h-full ${
+                    isDone ? "bg-slate-300" : "bg-gradient-to-b from-amber-400 to-orange-500"
+                  }`}></div>
+
+                  <div className="p-4 pl-5 flex-1 flex flex-col">
+                    {/* Header with badges */}
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="flex flex-wrap gap-1.5 min-w-0 flex-1">
+                        <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${difficultyColors[task.difficulty]}`}>
+                          {task.difficulty}
+                        </span>
+                        {myTask && cfg && (
+                          <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${cfg.bg} ${cfg.color}`}>
+                            <Icon className="w-3.5 h-3.5" />
+                            <span className="truncate">{cfg.label}</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-right min-w-0 flex-shrink-0 ml-2">
+                        <p className="font-bold text-base text-slate-900">${task.paymentAmount}</p>
+                        <p className="text-xs text-slate-500">{task.duration}</p>
+                      </div>
                     </div>
+
+                    {/* Task Title */}
+                    <h4 className={`
+                      font-semibold mb-4 line-clamp-3 leading-snug flex-1 min-h-0
+                      transition-colors group-hover:text-slate-900
+                      ${isDone ? "text-slate-500" : "text-slate-800"}
+                    `}>
+                      {task.title}
+                    </h4>
+
+                    {/* Action Button */}
+                    <button
+                      onClick={() => isInProgress ? navigate(`/working/${task.id}`) : startTask(task)}
+                      disabled={isDone || dailyTasksRemaining === 0}
+                      className={`
+                        w-full py-2.5 rounded-lg font-semibold text-sm 
+                        flex items-center justify-center gap-2 transition-all
+                        relative overflow-hidden group/btn flex-shrink-0
+                        ${isDone
+                          ? "bg-slate-100 text-slate-400 cursor-not-allowed"
+                          : dailyTasksRemaining > 0
+                          ? "bg-gradient-to-r from-amber-400 to-orange-500 text-slate-900 hover:shadow-lg hover:shadow-amber-400/25 hover:scale-[1.02]"
+                          : "bg-slate-100 text-slate-400 cursor-not-allowed"
+                        }
+                      `}
+                    >
+                      <div className="absolute inset-0 bg-white/20 opacity-0 group-hover/btn:opacity-100 transition-opacity duration-300"></div>
+                      
+                      {isDone ? (
+                        <span className="flex items-center gap-2 truncate">
+                          <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                          <span>Completed</span>
+                        </span>
+                      ) : isInProgress ? (
+                        <span className="flex items-center gap-2 truncate">
+                          CONTINUE
+                          <ChevronRight className="w-4 h-4 flex-shrink-0 transition-transform group-hover/btn:translate-x-0.5" />
+                        </span>
+                      ) : dailyTasksRemaining > 0 ? (
+                        <span className="flex items-center gap-2 truncate">
+                          START TASK
+                          <ChevronRight className="w-4 h-4 flex-shrink-0 transition-transform group-hover/btn:translate-x-0.5" />
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-2 truncate">
+                          <Lock className="w-4 h-4 flex-shrink-0" />
+                          <span>VIP Only</span>
+                        </span>
+                      )}
+                    </button>
                   </div>
-
-                  {myTask && cfg && (
-                    <div
-                      className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold mb-3 w-fit ${cfg.bg} ${cfg.color}`}
-                    >
-                      <Icon className="w-3.5 h-3.5" />
-                      {cfg.label}
-                    </div>
-                  )}
-
-                  <h4
-                    className={`font-semibold mb-3 line-clamp-2 transition ${
-                      isDone ? 'text-slate-500' : 'text-slate-900 group-hover:text-amber-600'
-                    }`}
-                  >
-                    {task.title}
-                  </h4>
-
-                  <button
-                    onClick={() =>
-                      isInProgress
-                        ? navigate(`/working/${task.id}`)               // resume
-                        : startTask(task)                                 // fresh start
-                    }
-                    disabled={isDone || dailyTasksRemaining === 0}
-                    className={`w-full py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${
-                      isDone
-                        ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                        : dailyTasksRemaining > 0
-                        ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-slate-900 hover:shadow-md'
-                        : 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                    }`}
-                  >
-                    {isDone
-                      ? 'Completed'
-                      : isInProgress
-                      ? (
-                          <>
-                            CONTINUE <ChevronRight className="w-4 h-4" />
-                          </>
-                        )
-                      : dailyTasksRemaining > 0
-                      ? (
-                          <>
-                            START TASK <ChevronRight className="w-4 h-4" />
-                          </>
-                        )
-                      : 'Upgrade to VIP'}
-                  </button>
                 </div>
               );
             })}
           </div>
-        </div>
-      </div>
+        </section>
+      </main>
 
-      {/* ── VIP Modal ── */}
+      {/* VIP Modal */}
       {showVIPModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white/95 backdrop-blur-xl rounded-3xl p-8 max-w-2xl w-full shadow-2xl border border-amber-400/20 max-h-screen overflow-y-auto">
+          <div className="bg-white/95 backdrop-blur-xl rounded-3xl p-8 max-w-2xl w-full shadow-2xl border border-amber-400/20">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-black text-slate-800">Upgrade to VIP</h2>
               <button onClick={() => setShowVIPModal(false)} className="p-2 hover:bg-slate-100 rounded-lg">
@@ -629,42 +772,36 @@ const UserDashboard = () => {
             </p>
 
             <div className="grid md:grid-cols-3 gap-4 mb-6">
-              {[
-                { tier: 'Bronze', tasks: 10, priceUSD: 10, color: 'from-amber-400 to-orange-500' },
-                { tier: 'Silver', tasks: 20, priceUSD: 20, color: 'from-slate-400 to-slate-600' },
-                { tier: 'Gold', tasks: 50, priceUSD: 50, color: 'from-yellow-400 to-amber-600' },
-              ].map((p) => (
+              {Object.entries(vipPlans).map(([tier, { priceUSD }]) => (
                 <label
-                  key={p.tier}
+                  key={tier}
                   className={`cursor-pointer p-5 rounded-2xl border-2 transition-all ${
-                    selectedVIP === p.tier
-                      ? `border-amber-500 bg-gradient-to-br ${p.color} text-white shadow-lg`
+                    selectedVIP === tier
+                      ? 'border-amber-500 bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-lg'
                       : 'border-slate-300 bg-white hover:border-slate-400'
                   }`}
                 >
                   <input
                     type="radio"
                     name="vipTier"
-                    value={p.tier}
-                    checked={selectedVIP === p.tier}
+                    value={tier}
+                    checked={selectedVIP === tier}
                     onChange={(e) => setSelectedVIP(e.target.value)}
                     className="sr-only"
                   />
                   <div className="text-center">
-                    <Crown
-                      className={`w-8 h-8 mx-auto mb-2 ${selectedVIP === p.tier ? 'text-white' : 'text-amber-500'}`}
-                    />
-                    <h3 className={`font-black text-lg ${selectedVIP === p.tier ? 'text-white' : 'text-slate-800'}`}>
-                      {p.tier} VIP
+                    <Crown className={`w-8 h-8 mx-auto mb-2 ${selectedVIP === tier ? 'text-white' : 'text-amber-500'}`} />
+                    <h3 className={`font-black text-lg ${selectedVIP === tier ? 'text-white' : 'text-slate-800'}`}>
+                      {tier} VIP
                     </h3>
-                    <p className={`text-3xl font-black my-2 ${selectedVIP === p.tier ? 'text-white' : 'text-slate-900'}`}>
-                      ${p.priceUSD}
+                    <p className={`text-3xl font-black my-2 ${selectedVIP === tier ? 'text-white' : 'text-slate-900'}`}>
+                      ${priceUSD}
                     </p>
-                    <p className={`text-sm ${selectedVIP === p.tier ? 'text-white/90' : 'text-slate-500'}`}>
-                      {formatKES(p.priceUSD)}
+                    <p className={`text-sm ${selectedVIP === tier ? 'text-white/90' : 'text-slate-500'}`}>
+                      {formatKES(priceUSD)}
                     </p>
-                    <p className={`mt-3 font-bold ${selectedVIP === p.tier ? 'text-white' : 'text-green-600'}`}>
-                      {p.tasks} Tasks/Day
+                    <p className={`mt-3 font-bold ${selectedVIP === tier ? 'text-white' : 'text-green-600'}`}>
+                      {vipPlans[tier].priceUSD === 10 ? '10' : vipPlans[tier].priceUSD === 20 ? '20' : '50'} Tasks/Day
                     </p>
                   </div>
                 </label>
@@ -701,8 +838,57 @@ const UserDashboard = () => {
             </button>
 
             <p className="text-xs text-slate-500 text-center mt-4">
-              You’ll receive an STK push. Enter your PIN to complete.
+              You'll receive an STK push. Enter your PIN to complete.
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* Notification Panel */}
+      {showNotifications && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-start justify-end p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-slate-200 p-4 flex justify-between items-center">
+              <h3 className="font-bold text-lg text-slate-900">Notifications</h3>
+              <div className="flex gap-2">
+                {notifications.some(n => !n.read) && (
+                  <button
+                    onClick={markAllRead}
+                    className="text-xs text-blue-600 hover:underline"
+                  >
+                    Mark all read
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowNotifications(false)}
+                  className="p-1 hover:bg-slate-100 rounded"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-4 space-y-3">
+              {notifications.length === 0 ? (
+                <p className="text-center text-slate-500 py-8">No notifications yet.</p>
+              ) : (
+                notifications.map(notif => (
+                  <div
+                    key={notif.id}
+                    className={`p-3 rounded-lg border ${
+                      notif.read ? 'bg-white border-slate-200' : 'bg-amber-50 border-amber-300'
+                    }`}
+                  >
+                    <p className={`text-sm ${notif.read ? 'text-slate-700' : 'font-medium text-slate-900'}`}>
+                      {notif.message}
+                    </p>
+                    <p className="text-xs text-slate-500 mt-1">
+                      {new Date(notif.timestamp).toLocaleString()}
+                    </p>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
       )}
