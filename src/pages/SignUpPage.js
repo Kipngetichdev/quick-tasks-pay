@@ -97,26 +97,27 @@ function SignUpPage() {
         // Step 2: Create complete Firestore user document
         const role = email.trim() === 'workfromhome.onlinepay@gmail.com' ? 'admin' : 'user';
         const referralCode = generateReferralCode();
-
-        await setDoc(doc(db, 'users', user.uid), {
-          userId: user.uid,
-          createdAt: serverTimestamp(),
-          email: email.trim().toLowerCase(),
-          name: name.trim(),
-          phone: phone.trim(),
-          referralCode,
-          role,
-          // Financial fields
-          currentbalance: 0,
-          thisMonthEarned: 0,
-          totalEarned: 0,
-          // Task tracking
-          ApprovedTasks: 0,
-          hasDoneOnboardingTask: false,
-          // VIP status
-          isVIP: false,
-          tier: "standard"
-        });
+        // In the handleSignUp function, replace the setDoc call with this:
+await setDoc(doc(db, 'users', user.uid), {
+  userId: user.uid,
+  createdAt: serverTimestamp(),
+  email: email.trim().toLowerCase(),
+  name: name.trim(),
+  phone: phone.trim(),
+  referralCode,
+  // Financial fields
+  currentbalance: 0,
+  thisMonthEarned: 0,
+  totalEarned: 0,
+  // Task tracking
+  ApprovedTasks: 0,
+  hasDoneOnboardingTask: false,
+  // VIP status
+  isVIP: false,
+  tier: "standard",
+  // Daily tasks
+  dailyTasksRemaining: 2
+});
 
         console.log('Firestore write success!');
         return user;
