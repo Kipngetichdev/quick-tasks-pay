@@ -13,7 +13,6 @@ module.exports = async (req, res) => {
     return res.status(200).end();
   }
 
-  // Validate request method
   if (req.method !== 'POST') {
     res.setHeader('Access-Control-Allow-Origin', 'https://outlier-tasks.vercel.app');
     return res.status(405).json({ success: false, error: 'Method not allowed' });
