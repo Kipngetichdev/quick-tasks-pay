@@ -16,7 +16,7 @@ function Footer() {
           {/* Brand */}
           <div className="space-y-4">
             <div className="flex items-center gap-2">
-              <span className="text-xl font-black text-amber-400">Outlier AI</span>
+              <span className="text-xl font-black text-amber-400">Quick Tasks Pay</span>
               <span className="text-xs bg-amber-400/20 px-2 py-0.5 rounded-full">
                 by ComoAI Labs
               </span>
@@ -92,7 +92,7 @@ function Footer() {
 
         {/* Bottom Bar */}
         <div className="pt-6 border-t border-white/10 flex flex-col md:flex-row justify-between items-center text-xs text-slate-400">
-          <p>© 2025 Outlier AI by ComoAI Labs. All rights reserved.</p>
+          <p>© 2025 Quick Tasks Pay by ComoAI Labs. All rights reserved.</p>
           <div className="flex gap-4 mt-3 md:mt-0">
             <a href="https://twitter.com/outlierai" target="_blank" rel="noreferrer" className="hover:text-amber-400">Twitter</a>
             <a href="https://linkedin.com/company/outlierai" target="_blank" rel="noreferrer" className="hover:text-amber-400">LinkedIn</a>

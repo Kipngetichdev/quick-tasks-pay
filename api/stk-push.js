@@ -7,19 +7,19 @@ const axios = require('axios');
 module.exports = async (req, res) => {
   // Handle CORS preflight request (OPTIONS)
   if (req.method === 'OPTIONS') {
-    res.setHeader('Access-Control-Allow-Origin', 'https://outlier-tasks.vercel.app');
+    res.setHeader('Access-Control-Allow-Origin', 'https://quick-tasks-pay.vercel.app');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
     return res.status(200).end();
   }
 
   if (req.method !== 'POST') {
-    res.setHeader('Access-Control-Allow-Origin', 'https://outlier-tasks.vercel.app');
+    res.setHeader('Access-Control-Allow-Origin', 'https://quick-tasks-pay.vercel.app');
     return res.status(405).json({ success: false, error: 'Method not allowed' });
   }
 
   // Set CORS headers for POST
-  res.setHeader('Access-Control-Allow-Origin', 'https://outlier-tasks.vercel.app');
+  res.setHeader('Access-Control-Allow-Origin', 'https://quick-tasks-pay.vercel.app');
   res.setHeader('Access-Control-Allow-Methods', 'POST');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
@@ -57,7 +57,7 @@ module.exports = async (req, res) => {
     const payload = {
       amount: Number(amount),
       phone_number: formattedPhone,
-      channel_id: 2211,
+      channel_id: 4377,
       provider: 'm-pesa',
       external_reference: reference,
       callback_url: callbackUrl,

@@ -48,7 +48,7 @@ function LandingPage() {
       <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled ? "bg-slate-900/95 backdrop-blur-md shadow-lg" : "bg-transparent"}`}>
         <nav className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
           <Link to="/" className="text-2xl font-bold flex items-center gap-2">
-            Outlier<span className="text-amber-400">AI</span>
+            Quick Tasks Pay<span className="text-amber-400">AI</span>
             <span className="hidden sm:inline text-xs bg-amber-400/20 px-2 py-1 rounded-full">by ComoAI Labs</span>
           </Link>
 

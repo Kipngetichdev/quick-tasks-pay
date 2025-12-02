@@ -7,14 +7,14 @@ import { getStorage } from 'firebase/storage';
 
 // Your AI-TRAINING-TASKS DB
  const firebaseConfig = {
- apiKey: "AIzaSyAp5CrpSIbVL3AFl-cfBHBBDE8xpDwvbTA",
-   authDomain: "ai-training-tasks.firebaseapp.com",
-   projectId: "ai-training-tasks",
-   storageBucket: "ai-training-tasks.firebasestorage.app",
-   messagingSenderId: "635815062881",
-   appId: "1:635815062881:web:3e0463099cda2b712fa920",
-   measurementId: "G-Q8QG41159X"
- };
+  apiKey: "AIzaSyCi0HuAzjVsBxIq6EuKkmlGtnDxiUwouXE",
+  authDomain: "quick-pay-c17ae.firebaseapp.com",
+  projectId: "quick-pay-c17ae",
+  storageBucket: "quick-pay-c17ae.firebasestorage.app",
+  messagingSenderId: "148295193494",
+  appId: "1:148295193494:web:dd085e964ef68fb18b43b7",
+  measurementId: "G-F2S2DL8HYV"
+};
 
 
 // Initialize Firebase
